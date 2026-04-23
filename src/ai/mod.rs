@@ -1,1 +1,10 @@
-// Placeholder module for AI provider abstraction (Wave 2)
+pub mod provider;
+pub mod models;
+pub mod openai;
+pub mod anthropic;
+pub mod prompts;
+
+pub use provider::AiProvider;
+pub use models::{AnalysisResult, ExerciseSection, ExerciseResult, AiError};
+pub use openai::{OllamaProvider, OpenAiProvider};
+pub use anthropic::AnthropicProvider;
