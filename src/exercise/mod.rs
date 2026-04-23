@@ -1,0 +1,1 @@
+// Placeholder module for exercise generation (Wave 3)

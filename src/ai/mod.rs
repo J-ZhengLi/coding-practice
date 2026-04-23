@@ -1,0 +1,1 @@
+// Placeholder module for AI provider abstraction (Wave 2)

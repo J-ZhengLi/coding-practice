@@ -1,0 +1,25 @@
+[package]
+name = "coding-practice"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sqlx = { version = "0.9.0-alpha", features = ["sqlite", "runtime-tokio", "tls-rustls", "chrono"] }
+tokio = { version = "1.52.1", features = ["full"] }
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5.0"
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+axum = "0.8.9"
+tower-http = { version = "0.5", features = ["cors", "fs"] }
+reqwest = { version = "0.12", features = ["json"] }
+thiserror = "1.0"
+toml = "0.8"
+async-openai = "0.27"
+scraper = "0.26"
+tracing = "0.1"
+
+[dev-dependencies]
+sqlx-cli = { version = "0.9.0-alpha", features = ["sqlite"] }

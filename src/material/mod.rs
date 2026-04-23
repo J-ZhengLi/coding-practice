@@ -1,0 +1,1 @@
+// Placeholder module for material acquisition (Wave 2)
