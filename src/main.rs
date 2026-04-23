@@ -1,8 +1,10 @@
 mod db;
 mod config;
 mod api;
+mod ai;
 mod error;
 mod material;
+mod exercise;
 
 use axum::{
     routing::{get, post, delete},
@@ -70,11 +72,31 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("coding-practice");
 
-    let material_cache = material::MaterialCache::new(material_repository, data_dir);
+    let material_cache = material::MaterialCache::new(material_repository, data_dir.clone());
     let material_service = Arc::new(material::MaterialService::new(
         github_client,
         tutorial_scraper,
         material_cache,
+        config_service.clone(),
+    ));
+
+    // Setup exercise services
+    let exercise_repository = Arc::new(db::SqliteExerciseRepository::new(db_pool.clone()));
+
+    // Create ExerciseGenerator from config (D-04: provider selection based on ai_model_type)
+    // Default to OllamaProvider for initial setup; will use config once available
+    let config_opt = config_service.get_config().await.ok();
+    let provider: Box<dyn crate::ai::AiProvider> = match &config_opt {
+        Some(config) => exercise::ExerciseService::create_provider_from_config(config),
+        None => Box::new(crate::ai::OllamaProvider::new()),
+    };
+
+    let generator = exercise::ExerciseGenerator::new(provider);
+    let exercise_service = Arc::new(exercise::ExerciseService::new(
+        generator,
+        exercise_repository,
+        data_dir.clone(),
+        material_service.clone(),
         config_service.clone(),
     ));
 
@@ -84,7 +106,7 @@ async fn main() -> anyhow::Result<()> {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Build router
+    // Build router with 4-tuple state including ExerciseService
     let app = Router::new()
         .route("/api/config", get(api::get_config_handler).post(api::save_config_handler))
         .route("/api/config/check", get(api::check_configured_handler))
@@ -93,9 +115,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/materials/fetch", post(api::fetch_materials_handler))
         .route("/api/materials/{id}/refresh", post(api::refresh_material_handler))
         .route("/api/materials/{id}", delete(api::delete_material_handler))
+        .route("/api/exercises", get(api::get_exercises_handler))
+        .route("/api/exercises/generate", post(api::generate_exercises_handler))
+        .route("/api/exercises/{id}", get(api::get_exercise_by_id_handler).delete(api::delete_exercise_handler))
         .route("/health", get(health_check))
         .layer(cors)
-        .with_state((config_service.clone(), ollama_service.clone(), material_service.clone()));
+        .with_state((config_service.clone(), ollama_service.clone(), material_service.clone(), exercise_service.clone()));
 
     // Start server
     let addr = SocketAddr::from(([127, 0, 0, 1], port));

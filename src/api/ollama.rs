@@ -11,6 +11,7 @@ type AppState = (
     Arc<ConfigService<crate::db::repository::SqliteConfigRepository>>,
     Arc<OllamaService>,
     Arc<MaterialService>,
+    Arc<crate::exercise::ExerciseService>,
 );
 
 #[derive(Debug, Deserialize)]
@@ -100,7 +101,7 @@ impl OllamaService {
 }
 
 pub async fn get_ollama_models_handler(
-    State((_, ollama_service, _)): State<AppState>,
+    State((_, ollama_service, _, _)): State<AppState>,
 ) -> Result<Json<Vec<ModelInfo>>> {
     let models = ollama_service.list_models().await?;
     Ok(Json(models))
