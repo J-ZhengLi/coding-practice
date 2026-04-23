@@ -1,0 +1,27 @@
+{
+  "name": "coding-practice-frontend",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "vue": "^3.5.33",
+    "pinia": "^3.0.4",
+    "vue-router": "^4.2.0",
+    "axios": "^1.15.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "@vue/test-utils": "^2.4.0",
+    "typescript": "~6.0.3",
+    "vite": "^5.4.21",
+    "vitest": "^2.0.0",
+    "vue-tsc": "^2.0.0",
+    "jsdom": "^25.0.0"
+  }
+}
