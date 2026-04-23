@@ -1,0 +1,85 @@
+import { defineStore } from 'pinia';
+import { ref } from 'vue';
+import {
+  fetchExercises as fetchExercisesApi,
+  generateExercises as generateExercisesApi,
+  deleteExercise as deleteExerciseApi,
+  type ExerciseResponse,
+  type GenerateRequest,
+  type GenerateResponse,
+} from '../api/exercises';
+
+export const useExerciseStore = defineStore('exercise', () => {
+  // State
+  const exercises = ref<ExerciseResponse[]>([]);
+  const generating = ref(false);
+  const loading = ref(false);
+  const error = ref<string | null>(null);
+
+  // Actions
+  const fetchExercises = async (language?: string, difficulty?: string) => {
+    loading.value = true;
+    error.value = null;
+
+    try {
+      exercises.value = await fetchExercisesApi(language, difficulty);
+    } catch (err: any) {
+      error.value = err.response?.data?.error || err.message || 'Failed to fetch exercises';
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  const generateExercises = async (language: string, difficulty: string): Promise<GenerateResponse | null> => {
+    generating.value = true;
+    error.value = null;
+
+    try {
+      const request: GenerateRequest = { language, difficulty };
+      const response = await generateExercisesApi(request);
+
+      // Update exercises state with newly generated results
+      if (response.cached) {
+        // If cached, just update the local state
+        await fetchExercises(language, difficulty);
+      } else {
+        // If newly generated, add to existing exercises
+        exercises.value = [...exercises.value, ...response.exercises];
+      }
+
+      return response;
+    } catch (err: any) {
+      error.value = err.response?.data?.error || err.message || 'Failed to generate exercises';
+      return null;
+    } finally {
+      generating.value = false;
+    }
+  };
+
+  const deleteExercise = async (id: number) => {
+    loading.value = true;
+    error.value = null;
+
+    try {
+      await deleteExerciseApi(id);
+      exercises.value = exercises.value.filter((e) => e.id !== id);
+    } catch (err: any) {
+      error.value = err.response?.data?.error || err.message || 'Failed to delete exercise';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  return {
+    // State
+    exercises,
+    generating,
+    loading,
+    error,
+    // Actions
+    fetchExercises,
+    generateExercises,
+    deleteExercise,
+  };
+});
