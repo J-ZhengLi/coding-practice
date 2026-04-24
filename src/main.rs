@@ -5,6 +5,8 @@ mod ai;
 mod error;
 mod material;
 mod exercise;
+mod submission;
+mod scoring;
 
 use axum::{
     routing::{get, post, delete},
@@ -100,13 +102,17 @@ async fn main() -> anyhow::Result<()> {
         config_service.clone(),
     ));
 
+    // Setup submission services
+    let submission_repository = db::SqliteSubmissionRepository::new(db_pool.clone());
+    let submission_service = Arc::new(submission::SubmissionService::new(submission_repository));
+
     // Setup CORS
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Build router with 4-tuple state including ExerciseService
+    // Build router with 5-tuple state including SubmissionService
     let app = Router::new()
         .route("/api/config", get(api::get_config_handler).post(api::save_config_handler))
         .route("/api/config/check", get(api::check_configured_handler))
@@ -118,9 +124,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/exercises", get(api::get_exercises_handler))
         .route("/api/exercises/generate", post(api::generate_exercises_handler))
         .route("/api/exercises/{id}", get(api::get_exercise_by_id_handler).delete(api::delete_exercise_handler))
+        .route("/api/submissions", post(api::submit_code_handler).get(api::get_submissions_handler))
+        .route("/api/submissions/{id}", get(api::get_submission_handler))
+        .route("/api/submissions/{id}/solution", get(api::get_solution_handler))
+        .route("/api/progress/daily", get(api::get_daily_progress_handler))
+        .route("/api/progress/trend", get(api::get_score_trend_handler))
         .route("/health", get(health_check))
         .layer(cors)
-        .with_state((config_service.clone(), ollama_service.clone(), material_service.clone(), exercise_service.clone()));
+        .with_state((config_service.clone(), ollama_service.clone(), material_service.clone(), exercise_service.clone(), submission_service.clone()));
 
     // Start server
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
