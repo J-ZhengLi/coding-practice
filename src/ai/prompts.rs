@@ -1,5 +1,46 @@
 use std::collections::HashMap;
 
+/// Single-pass template substitution that replaces placeholders without re-processing
+/// substituted values. This avoids template injection where a value like original_code
+/// could contain a later placeholder pattern like {user_code}.
+fn fill_template(template: &str, replacements: &[(&str, &str)]) -> String {
+    let mut result = String::with_capacity(template.len());
+    let mut chars = template.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '{' {
+            // Collect the candidate placeholder name (content between { and })
+            let mut candidate = String::new();
+            let mut found_close = false;
+            while let Some(&next) = chars.peek() {
+                if next == '}' {
+                    chars.next();
+                    found_close = true;
+                    break;
+                }
+                candidate.push(chars.next().unwrap());
+            }
+            if found_close {
+                // Check if this is a known placeholder (patterns stored without braces)
+                if let Some((_pattern, value)) = replacements.iter().find(|(pattern, _)| *pattern == candidate) {
+                    result.push_str(value);
+                } else {
+                    // Unknown placeholder, keep it as-is
+                    result.push('{');
+                    result.push_str(&candidate);
+                    result.push('}');
+                }
+            } else {
+                // Unterminated brace, emit what we collected
+                result.push('{');
+                result.push_str(&candidate);
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+    result
+}
+
 /// System prompt template for the analyze step.
 ///
 /// Instructs the AI to identify exercise-worthy sections in source code
@@ -69,25 +110,28 @@ pub fn get_comment_syntax(language: &str) -> &'static str {
 
 /// Fills the ANALYZE_SYSTEM_PROMPT template with language and difficulty.
 pub fn format_analyze_system_prompt(language: &str, difficulty: &str) -> String {
-    ANALYZE_SYSTEM_PROMPT
-        .replace("{language}", language)
-        .replace("{difficulty}", difficulty)
+    fill_template(ANALYZE_SYSTEM_PROMPT, &[
+        ("language", language),
+        ("difficulty", difficulty),
+    ])
 }
 
 /// Fills the ANALYZE_USER_PROMPT template with language, max_sections, and code.
 pub fn format_analyze_user_prompt(language: &str, max_sections: usize, difficulty: &str, code: &str) -> String {
-    ANALYZE_USER_PROMPT
-        .replace("{language}", language)
-        .replace("{max_sections}", &max_sections.to_string())
-        .replace("{difficulty}", difficulty)
-        .replace("{code}", code)
+    fill_template(ANALYZE_USER_PROMPT, &[
+        ("language", language),
+        ("max_sections", &max_sections.to_string()),
+        ("difficulty", difficulty),
+        ("code", code),
+    ])
 }
 
 /// Fills the GENERATE_SYSTEM_PROMPT template with language and comment syntax.
 pub fn format_generate_system_prompt(language: &str) -> String {
-    GENERATE_SYSTEM_PROMPT
-        .replace("{language}", language)
-        .replace("{comment_syntax}", get_comment_syntax(language))
+    fill_template(GENERATE_SYSTEM_PROMPT, &[
+        ("language", language),
+        ("comment_syntax", get_comment_syntax(language)),
+    ])
 }
 
 /// Fills the GENERATE_USER_PROMPT template with all parameters.
@@ -101,15 +145,16 @@ pub fn format_generate_user_prompt(
     original_code: &str,
     full_code: &str,
 ) -> String {
-    GENERATE_USER_PROMPT
-        .replace("{difficulty}", difficulty)
-        .replace("{language}", language)
-        .replace("{concept}", concept)
-        .replace("{reason}", reason)
-        .replace("{start_line}", &start_line.to_string())
-        .replace("{end_line}", &end_line.to_string())
-        .replace("{original_code}", original_code)
-        .replace("{full_code}", full_code)
+    fill_template(GENERATE_USER_PROMPT, &[
+        ("difficulty", difficulty),
+        ("language", language),
+        ("concept", concept),
+        ("reason", reason),
+        ("start_line", &start_line.to_string()),
+        ("end_line", &end_line.to_string()),
+        ("original_code", original_code),
+        ("full_code", full_code),
+    ])
 }
 
 /// System prompt for the evaluate step (AI-06, SCORE-01).
@@ -170,11 +215,12 @@ pub fn format_evaluate_user_prompt(
     user_code: &str,
     todo_comment: &str,
 ) -> String {
-    EVALUATE_USER_PROMPT
-        .replace("{language}", language)
-        .replace("{title}", title)
-        .replace("{description}", description)
-        .replace("{original_code}", original_code)
-        .replace("{user_code}", user_code)
-        .replace("{todo_comment}", todo_comment)
+    fill_template(EVALUATE_USER_PROMPT, &[
+        ("language", language),
+        ("title", title),
+        ("description", description),
+        ("original_code", original_code),
+        ("user_code", user_code),
+        ("todo_comment", todo_comment),
+    ])
 }
