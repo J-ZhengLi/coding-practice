@@ -74,12 +74,24 @@ impl OllamaService {
         let ollama_response: OllamaModelsResponse = response.json().await
             .map_err(|e| AppError::Ollama(format!("Failed to parse Ollama response: {}", e)))?;
 
-        // Convert to ModelInfo with "(local)" suffix per D-04
+        // Convert to ModelInfo with cloud/local distinction
+        // Models with ":cloud" suffix are cloud-hosted, others are local
         let models: Vec<ModelInfo> = ollama_response.models
             .into_iter()
-            .map(|m| ModelInfo {
-                name: format!("{} (local)", m.name),
-                model_type: "local".to_string(),
+            .map(|m| {
+                let is_cloud = m.name.ends_with(":cloud");
+                ModelInfo {
+                    name: if is_cloud {
+                        format!("{} (OLLAMA, CLOUD)", m.name)
+                    } else {
+                        format!("{} (OLLAMA, LOCAL)", m.name)
+                    },
+                    model_type: if is_cloud {
+                        "ollama_cloud".to_string()
+                    } else {
+                        "ollama_local".to_string()
+                    },
+                }
             })
             .collect();
 
@@ -93,7 +105,7 @@ impl OllamaService {
     }
 }
 
-pub async fn get_ollama_models_handler(
+pub async fn get_llm_models_handler(
     State((_, ollama_service, _, _, _)): State<AppState>,
 ) -> Result<Json<Vec<ModelInfo>>> {
     let models = ollama_service.list_models().await?;

@@ -2,6 +2,7 @@
 name = "coding-practice"
 version = "0.1.0"
 edition = "2024"
+default-run = "coding-practice"
 
 [dependencies]
 sqlx = { version = "0.9.0-alpha", features = ["sqlite", "runtime-tokio", "tls-rustls", "chrono"] }
@@ -16,12 +17,12 @@ axum = "0.8.9"
 tower-http = { version = "0.5", features = ["cors", "fs"] }
 reqwest = { version = "0.12", features = ["json"] }
 thiserror = "1.0"
-toml = "0.8"
 async-openai = "0.27"
 scraper = "0.26"
 tracing = "0.1"
 urlencoding = "2.1"
 sha2 = "0.10"
+clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]
 sqlx-cli = { version = "0.9.0-alpha", features = ["sqlite"] }

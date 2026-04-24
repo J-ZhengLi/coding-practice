@@ -1,5 +1,5 @@
 use crate::db::repository::ConfigRepository;
-use crate::config::model::{UserConfig, LanguageQuota};
+use crate::config::model::{UserConfig, LanguageQuota, LanguageSkillLevel};
 use crate::error::{AppError, Result};
 
 pub struct ConfigService<R: ConfigRepository> {
@@ -33,9 +33,29 @@ impl<R: ConfigRepository> ConfigService<R> {
         };
 
         let preferred_language = get_value("preferred_language")?;
-        let skill_level = get_value("skill_level")?;
         let ai_model = get_value("ai_model")?;
         let ai_model_type = get_value("ai_model_type")?;
+
+        // Load per-language skill levels from skill_level_{language} keys
+        // Backward compat: if only legacy "skill_level" key exists, use it for all languages
+        let languages = ["python", "rust", "go", "cpp"];
+        let skill_levels = if let Ok(global_level) = get_value("skill_level") {
+            // Legacy: single global skill level
+            languages.iter().map(|lang| LanguageSkillLevel {
+                language: lang.to_string(),
+                skill_level: global_level.clone(),
+            }).collect()
+        } else {
+            // New: per-language skill levels
+            languages.iter().filter_map(|lang| {
+                get_value(&format!("skill_level_{}", lang)).ok().map(|level| {
+                    LanguageSkillLevel {
+                        language: lang.to_string(),
+                        skill_level: level,
+                    }
+                })
+            }).collect()
+        };
 
         let daily_quotas = vec![
             LanguageQuota {
@@ -69,7 +89,7 @@ impl<R: ConfigRepository> ConfigService<R> {
 
         Ok(UserConfig {
             preferred_language,
-            skill_level,
+            skill_levels,
             daily_quotas,
             ai_model,
             ai_model_type: serde_json::from_str(&ai_model_type)
@@ -84,40 +104,35 @@ impl<R: ConfigRepository> ConfigService<R> {
     }
 
     pub async fn save_config(&self, config: &UserConfig) -> Result<()> {
-        // Validate all required fields (no defaults per D-06)
         if config.preferred_language.is_empty() {
             return Err(AppError::Validation("Preferred language is required".to_string()));
-        }
-        if config.skill_level.is_empty() {
-            return Err(AppError::Validation("Skill level is required".to_string()));
         }
         if config.ai_model.is_empty() {
             return Err(AppError::Validation("AI model is required".to_string()));
         }
 
-        // Validate language selection (CONF-01)
         let valid_languages = ["python", "rust", "go", "cpp"];
         if !valid_languages.contains(&config.preferred_language.as_str()) {
             return Err(AppError::Validation("Invalid preferred language. Must be one of: python, rust, go, cpp".to_string()));
         }
 
-        // Validate skill level (CONF-02)
         let valid_levels = ["beginner", "intermediate", "advanced"];
-        if !valid_levels.contains(&config.skill_level.as_str()) {
-            return Err(AppError::Validation("Invalid skill level. Must be one of: beginner, intermediate, advanced".to_string()));
+        for sl in &config.skill_levels {
+            if !valid_languages.contains(&sl.language.as_str()) {
+                return Err(AppError::Validation(format!("Invalid language: {}", sl.language)));
+            }
+            if !valid_levels.contains(&sl.skill_level.as_str()) {
+                return Err(AppError::Validation(format!("Invalid skill level for {}. Must be: beginner, intermediate, advanced", sl.language)));
+            }
         }
 
-        // Validate daily quotas (CONF-03) - must be > 0
         for quota in &config.daily_quotas {
             if quota.quota == 0 {
                 return Err(AppError::Validation(format!("Daily quota for {} must be greater than 0", quota.language)));
             }
         }
 
-        // Save all config values
         self.repository.set("preferred_language", &config.preferred_language).await
-            .map_err(AppError::from)?;
-        self.repository.set("skill_level", &config.skill_level).await
             .map_err(AppError::from)?;
         self.repository.set("ai_model", &config.ai_model).await
             .map_err(AppError::from)?;
@@ -128,6 +143,13 @@ impl<R: ConfigRepository> ConfigService<R> {
         ).await
             .map_err(AppError::from)?;
 
+        for sl in &config.skill_levels {
+            self.repository
+                .set(&format!("skill_level_{}", sl.language), &sl.skill_level)
+                .await
+                .map_err(AppError::from)?;
+        }
+
         for quota in &config.daily_quotas {
             self.repository
                 .set(&format!("quota_{}", quota.language), &quota.quota.to_string())
@@ -135,7 +157,6 @@ impl<R: ConfigRepository> ConfigService<R> {
                 .map_err(AppError::from)?;
         }
 
-        // Save optional email/notification fields (CONF-07/CONF-08)
         if let Some(ref email) = config.email {
             self.repository.set("email", email).await.map_err(AppError::from)?;
         }

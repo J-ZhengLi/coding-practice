@@ -1,9 +1,15 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LanguageSkillLevel {
+    pub language: String,
+    pub skill_level: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserConfig {
     pub preferred_language: String,
-    pub skill_level: String,
+    pub skill_levels: Vec<LanguageSkillLevel>,
     pub daily_quotas: Vec<LanguageQuota>,
     pub ai_model: String,
     pub ai_model_type: ModelType,
@@ -37,7 +43,7 @@ pub enum ModelType {
 #[derive(Debug, Deserialize)]
 pub struct ConfigRequest {
     pub preferred_language: String,
-    pub skill_level: String,
+    pub skill_levels: Vec<LanguageSkillLevel>,
     pub daily_quotas: Vec<LanguageQuota>,
     pub ai_model: String,
     pub ai_model_type: ModelType,
@@ -59,7 +65,7 @@ impl From<ConfigRequest> for UserConfig {
     fn from(req: ConfigRequest) -> Self {
         Self {
             preferred_language: req.preferred_language,
-            skill_level: req.skill_level,
+            skill_levels: req.skill_levels,
             daily_quotas: req.daily_quotas,
             ai_model: req.ai_model,
             ai_model_type: req.ai_model_type,

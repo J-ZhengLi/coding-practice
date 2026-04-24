@@ -14,42 +14,24 @@ use axum::{
     Json,
     response::IntoResponse,
 };
+use clap::Parser;
 use tower_http::cors::{Any, CorsLayer};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
-#[derive(serde::Deserialize)]
-struct ServerConfig {
-    server: ServerSettings,
-}
-
-#[derive(serde::Deserialize)]
-struct ServerSettings {
+#[derive(Parser)]
+#[command(name = "coding-practice", about = "AI Programming Learning Assistant")]
+struct Cli {
+    /// Port to listen on
+    #[arg(short, long, default_value_t = 8001)]
     port: u16,
-}
-
-impl Default for ServerSettings {
-    fn default() -> Self {
-        Self { port: 8001 }
-    }
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Load configuration from config.toml if exists
-    let port = if let Ok(config_content) = std::fs::read_to_string("config.toml") {
-        let config: ServerConfig = toml::from_str(&config_content)
-            .unwrap_or_else(|e| {
-                eprintln!("Failed to parse config.toml: {}, using defaults", e);
-                ServerConfig {
-                    server: ServerSettings::default(),
-                }
-            });
-        config.server.port
-    } else {
-        8001 // Default port per D-05
-    };
+    let cli = Cli::parse();
+    let port = cli.port;
 
     // Setup database
     let db_pool = db::create_pool(None).await?;
@@ -116,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/api/config", get(api::get_config_handler).post(api::save_config_handler))
         .route("/api/config/check", get(api::check_configured_handler))
-        .route("/api/ollama/models", get(api::get_ollama_models_handler))
+        .route("/api/ollama/models", get(api::get_llm_models_handler))
         .route("/api/materials", get(api::get_materials_handler))
         .route("/api/materials/fetch", post(api::fetch_materials_handler))
         .route("/api/materials/{id}/refresh", post(api::refresh_material_handler))
@@ -134,11 +116,10 @@ async fn main() -> anyhow::Result<()> {
         .with_state((config_service.clone(), ollama_service.clone(), material_service.clone(), exercise_service.clone(), submission_service.clone()));
 
     // Start server
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let addr = SocketAddr::from(([127, 0,  0, 1], port));
     let listener = TcpListener::bind(addr).await?;
 
     println!("Server listening on http://{}", addr);
-    println!("Config file: config.toml (optional)");
     println!("Database: {:?}", db::get_database_path());
 
     axum::serve(listener, app).await?;
