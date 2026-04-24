@@ -290,7 +290,7 @@ impl MaterialService {
     /// Refresh a specific material by deleting the cached version and re-fetching.
     pub async fn refresh_material(&self, id: i64) -> Result<Material, MaterialError> {
         // Get the original material info
-        let original = self.cache.refresh_material(id).await?;
+        let original = self.cache.delete_material(id).await?;
 
         // Re-fetch based on source type
         let content = match original.source_type.as_str() {

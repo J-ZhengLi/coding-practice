@@ -132,7 +132,7 @@ impl MaterialCache {
 
     /// Delete a material from cache (DB + filesystem).
     /// Signals that re-fetch is needed; actual re-fetch happens via MaterialService.
-    pub async fn refresh_material(&self, id: i64) -> Result<Material, MaterialError> {
+    pub async fn delete_material(&self, id: i64) -> Result<Material, MaterialError> {
         let material = self
             .material_repo
             .get_by_id(id)

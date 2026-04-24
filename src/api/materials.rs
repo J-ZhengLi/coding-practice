@@ -107,7 +107,7 @@ pub async fn delete_material_handler(
     // Delete from cache (DB + filesystem)
     material_service
         .cache
-        .refresh_material(id)
+        .delete_material(id)
         .await
         .map_err(|e| crate::error::AppError::Material(e.to_string()))?;
 
