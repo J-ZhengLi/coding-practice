@@ -60,3 +60,36 @@ pub struct NewExercise {
     pub start_line: i64,
     pub end_line: i64,
 }
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct Submission {
+    pub id: i64,
+    pub exercise_id: i64,
+    pub user_code: String,
+    pub score: i32,
+    pub letter_grade: String,
+    pub is_partial: bool,
+    pub strengths: String,     // JSON array stored as TEXT
+    pub improvements: String,  // JSON array stored as TEXT
+    pub summary: String,
+    pub submitted_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct NewSubmission {
+    pub exercise_id: i64,
+    pub user_code: String,
+    pub score: i32,
+    pub letter_grade: String,
+    pub is_partial: bool,
+    pub strengths: String,
+    pub improvements: String,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct DailyScore {
+    pub date: String,
+    pub avg_score: f64,
+    pub count: i64,
+}
