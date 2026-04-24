@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@theme {
+  /* Grade color palette per UI-SPEC */
+  --color-grade-a-bg: #f0fdf4;
+  --color-grade-a-text: #166534;
+  --color-grade-a-border: #bbf7d0;
+  --color-grade-b-bg: #f7fee7;
+  --color-grade-b-text: #3f6212;
+  --color-grade-b-border: #d9f99d;
+  --color-grade-c-bg: #fefce8;
+  --color-grade-c-text: #854d0e;
+  --color-grade-c-border: #fef08a;
+  --color-grade-d-bg: #fff7ed;
+  --color-grade-d-text: #9a3412;
+  --color-grade-d-border: #fed7aa;
+  --color-grade-f-bg: #fef2f2;
+  --color-grade-f-text: #991b1b;
+  --color-grade-f-border: #fecaca;
+}
