@@ -50,7 +50,12 @@ export const useSubmissionStore = defineStore('submission', () => {
     loading.value = true;
     error.value = null;
     try {
-      submissions.value = await getSubmissionsByExerciseApi(exerciseId);
+      const newSubmissions = await getSubmissionsByExerciseApi(exerciseId);
+      // Merge instead of replace to preserve submissions from other exercises
+      submissions.value = [
+        ...submissions.value.filter(s => s.exercise_id !== exerciseId),
+        ...newSubmissions,
+      ];
     } catch (err: any) {
       error.value = err.response?.data?.error || err.message || 'Failed to load submissions';
     } finally {
