@@ -111,3 +111,70 @@ pub fn format_generate_user_prompt(
         .replace("{original_code}", original_code)
         .replace("{full_code}", full_code)
 }
+
+/// System prompt for the evaluate step (AI-06, SCORE-01).
+///
+/// Instructs the AI to compare user code against the original solution,
+/// scoring STRUCTURAL COMPLETENESS (not functional correctness) per SCORE-06.
+/// Returns structured JSON matching the EvaluationResult schema.
+pub const EVALUATE_SYSTEM_PROMPT: &str = r#"You are a code evaluation assistant for programming exercises. Compare the user's implementation against the expected original code and provide a structural completeness score from 0 to 100. The score measures STRUCTURAL COMPLETENESS (not functional correctness) - how much of the expected code structure is present and correctly placed. Respond ONLY with valid JSON matching this schema: {"score": <number 0-100>, "letter_grade": "<A|B|C|D|F>", "is_partial": <boolean>, "feedback": {"strengths": ["<string>"], "improvements": ["<string>"], "summary": "<string>"}}.
+
+Scoring criteria:
+- 90-100 (A): Nearly complete structural match; all key components present and correctly structured
+- 80-89 (B): Most structure present; minor omissions or slight misplacement
+- 70-79 (C): Significant structure present but notable gaps or errors
+- 60-69 (D): Partial structure; major sections missing or incorrectly structured
+- 0-59 (F): Minimal structure; most expected components absent
+
+Feedback requirements:
+- strengths: 2-4 specific things the user did well (per SCORE-10)
+- improvements: 2-4 specific areas for improvement (per SCORE-09)
+- summary: 1-2 sentence overall assessment (per SCORE-08)
+
+If TODO markers remain in the user's code, set is_partial to true."#;
+
+/// User prompt template for the evaluate step.
+///
+/// Provides the exercise context, original code, user's submission, and TODO comment.
+pub const EVALUATE_USER_PROMPT: &str = r#"Evaluate the following {language} code submission for the exercise "{title}".
+
+## Exercise Description
+{description}
+
+## Original Code (Expected Solution)
+```{language}
+{original_code}
+```
+
+## User's Submission
+```{language}
+{user_code}
+```
+
+## TODO Comment
+{todo_comment}
+
+Score the structural completeness of the user's implementation. Check if the code structure matches the expected solution. Provide specific strengths and specific areas for improvement."#;
+
+/// Fills the EVALUATE_SYSTEM_PROMPT template (no placeholders in system prompt, but kept for consistency).
+pub fn format_evaluate_system_prompt() -> String {
+    EVALUATE_SYSTEM_PROMPT.to_string()
+}
+
+/// Fills the EVALUATE_USER_PROMPT template with exercise details.
+pub fn format_evaluate_user_prompt(
+    language: &str,
+    title: &str,
+    description: &str,
+    original_code: &str,
+    user_code: &str,
+    todo_comment: &str,
+) -> String {
+    EVALUATE_USER_PROMPT
+        .replace("{language}", language)
+        .replace("{title}", title)
+        .replace("{description}", description)
+        .replace("{original_code}", original_code)
+        .replace("{user_code}", user_code)
+        .replace("{todo_comment}", todo_comment)
+}

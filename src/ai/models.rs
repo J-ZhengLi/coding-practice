@@ -54,6 +54,37 @@ impl std::fmt::Display for AiError {
 
 impl std::error::Error for AiError {}
 
+/// Result of evaluating a user's code submission against the expected solution.
+/// Per AI-06: compares user-submitted code against expected functionality.
+/// Per SCORE-01: score is 0-100 based on structural completeness.
+/// Per SCORE-06: labeled as "structural completeness", NOT functional correctness.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EvaluationResult {
+    /// Structural completeness score from 0-100. Per SCORE-02: 100 indicates
+    /// user implementation matches expected functionality structure.
+    pub score: u32,
+    /// Letter grade: A (90-100), B (80-89), C (70-79), D (60-69), F (0-59). Per SCORE-05.
+    pub letter_grade: String,
+    /// True if TODO markers remain in the user's code (partial implementation). Per D-14.
+    pub is_partial: bool,
+    /// Detailed feedback with strengths, improvements, and summary. Per AI-07, AI-08.
+    pub feedback: EvaluationFeedback,
+}
+
+/// Personalized feedback from AI code evaluation.
+/// Per SCORE-08: generates personalized comments on performance.
+/// Per SCORE-09: identifies specific areas for improvement.
+/// Per SCORE-10: highlights what the user did well.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EvaluationFeedback {
+    /// Specific things the user did well. Per SCORE-10.
+    pub strengths: Vec<String>,
+    /// Specific areas for improvement. Per SCORE-09.
+    pub improvements: Vec<String>,
+    /// Brief overall assessment. Per SCORE-08.
+    pub summary: String,
+}
+
 impl From<AiError> for crate::error::AppError {
     fn from(err: AiError) -> Self {
         // Redact any sensitive details before converting to AppError
