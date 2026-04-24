@@ -1,2 +1,5 @@
 pub mod models;
-pub use models::{SubmissionResponse, SubmitCodeRequest, SolutionResponse};
+pub mod service;
+
+pub use models::{SubmissionResponse, SubmitCodeRequest, SolutionResponse, DailyProgressResponse, ScoreTrendResponse, DailyScoreEntry};
+pub use service::SubmissionService;
