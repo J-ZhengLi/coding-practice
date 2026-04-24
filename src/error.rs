@@ -17,6 +17,12 @@ pub enum AppError {
     #[error("AI error: {0}")]
     Ai(String),
 
+    #[error("Submission error: {0}")]
+    Submission(String),
+
+    #[error("Evaluation error: {0}")]
+    Evaluation(String),
+
     #[error("Not configured")]
     NotConfigured,
 
@@ -35,6 +41,8 @@ impl axum::response::IntoResponse for AppError {
             AppError::Ollama(msg) => (axum::http::StatusCode::SERVICE_UNAVAILABLE, msg.clone()),
             AppError::Material(msg) => (axum::http::StatusCode::BAD_GATEWAY, msg.clone()),
             AppError::Ai(msg) => (axum::http::StatusCode::BAD_GATEWAY, msg.clone()),
+            AppError::Submission(msg) => (axum::http::StatusCode::BAD_REQUEST, msg.clone()),
+            AppError::Evaluation(msg) => (axum::http::StatusCode::BAD_GATEWAY, msg.clone()),
             AppError::NotConfigured => (axum::http::StatusCode::NOT_FOUND, "Configuration not found".to_string()),
             AppError::Validation(msg) => (axum::http::StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Internal(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
