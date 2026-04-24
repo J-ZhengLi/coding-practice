@@ -1,3 +1,4 @@
+use tracing::error;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -35,8 +36,16 @@ pub enum AppError {
 
 impl axum::response::IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
+        // Log full error details server-side for Database and Internal errors
+        if let AppError::Database(e) = &self {
+            error!("Database error: {}", e);
+        }
+        if let AppError::Internal(e) = &self {
+            error!("Internal error: {}", e);
+        }
+
         let (status, message) = match &self {
-            AppError::Database(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+            AppError::Database(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Internal database error".to_string()),
             AppError::Config(msg) => (axum::http::StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Ollama(msg) => (axum::http::StatusCode::SERVICE_UNAVAILABLE, msg.clone()),
             AppError::Material(msg) => (axum::http::StatusCode::BAD_GATEWAY, msg.clone()),
@@ -45,7 +54,7 @@ impl axum::response::IntoResponse for AppError {
             AppError::Evaluation(msg) => (axum::http::StatusCode::BAD_GATEWAY, msg.clone()),
             AppError::NotConfigured => (axum::http::StatusCode::NOT_FOUND, "Configuration not found".to_string()),
             AppError::Validation(msg) => (axum::http::StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::Internal(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+            AppError::Internal(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()),
         };
 
         let body = serde_json::json!({
