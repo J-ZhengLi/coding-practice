@@ -1,16 +1,17 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { useConfigStore } from '../stores/config';
 
-// Placeholder views - will be implemented in Plan 04
 const ConfigurationPage = () => import('../views/ConfigurationPage.vue').catch(() => {
-  // Fallback if view doesn't exist yet
   return { template: '<div>Configuration Page (placeholder)</div>' };
 });
 
 const DashboardPage = () => import('../views/DashboardPage.vue').catch(() => {
-  // Fallback if view doesn't exist yet
   return { template: '<div>Dashboard Page (placeholder)</div>' };
 });
+
+// Lazy-loaded per Pitfall 4: Monaco Editor adds ~2-4MB, must be code-split
+const ExerciseEditorPage = () => import('../views/ExerciseEditorPage.vue');
+const ResultsPage = () => import('../views/ResultsPage.vue');
 
 const routes: RouteRecordRaw[] = [
   {
@@ -29,6 +30,18 @@ const routes: RouteRecordRaw[] = [
     name: 'dashboard',
     component: DashboardPage,
     meta: { requiresConfig: true, title: 'Dashboard' },
+  },
+  {
+    path: '/exercise/:id',
+    name: 'exercise-editor',
+    component: ExerciseEditorPage,
+    meta: { requiresConfig: true, title: 'Exercise Editor' },
+  },
+  {
+    path: '/results/:id',
+    name: 'results',
+    component: ResultsPage,
+    meta: { requiresConfig: true, title: 'Results' },
   },
 ];
 
