@@ -5,3 +5,5 @@ pub mod error;
 pub mod ai;
 pub mod material;
 pub mod exercise;
+pub mod submission;
+pub mod scoring;
