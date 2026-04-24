@@ -6,6 +6,7 @@ use crate::db::models::{NewSubmission, Submission};
 use crate::db::submission_repo::SubmissionRepository;
 use crate::error::{AppError, Result};
 use crate::scoring::models::score_to_grade;
+use crate::scoring::validate_score;
 use crate::submission::models::{DailyProgressResponse, DailyScoreEntry, ScoreTrendResponse, SolutionResponse};
 
 /// Service for submitting code, retrieving submissions, and computing scores.
@@ -67,6 +68,7 @@ impl<R: SubmissionRepository> SubmissionService<R> {
             .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to serialize improvements: {}", e)))?;
 
         // Compute letter grade from score per SCORE-05 thresholds
+        validate_score(evaluation.score as i32)?;
         let letter_grade = score_to_grade(evaluation.score).to_string();
 
         let new_submission = NewSubmission {

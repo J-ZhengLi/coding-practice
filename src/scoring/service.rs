@@ -2,6 +2,18 @@ use crate::db::submission_repo::SubmissionRepository;
 use crate::error::{AppError, Result};
 use crate::scoring::models::{score_to_grade, LetterGrade};
 
+/// Validate that a score is within the 0-100 range per SCORE-01.
+/// Standalone function so it can be called without constructing a ScoringService.
+pub fn validate_score(score: i32) -> Result<()> {
+    if score < 0 || score > 100 {
+        return Err(AppError::Validation(format!(
+            "Score must be between 0 and 100, got {}",
+            score
+        )));
+    }
+    Ok(())
+}
+
 /// Service for computing scoring metrics: daily averages, letter grades, trends.
 /// Per SCORE-03: calculates daily average score across multiple exercises.
 /// Per SCORE-04: assigns letter grade based on daily average.
@@ -22,13 +34,7 @@ impl<R: SubmissionRepository> ScoringService<R> {
 
     /// Validate that a score is within the 0-100 range per SCORE-01.
     pub fn validate_score(&self, score: i32) -> Result<()> {
-        if score < 0 || score > 100 {
-            return Err(AppError::Validation(format!(
-                "Score must be between 0 and 100, got {}",
-                score
-            )));
-        }
-        Ok(())
+        validate_score(score)
     }
 
     /// Get the LetterGrade enum from a string representation.
