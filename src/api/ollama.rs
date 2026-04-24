@@ -46,7 +46,7 @@ impl OllamaService {
     pub async fn list_models(&self) -> Result<Vec<ModelInfo>> {
         // Check cache
         {
-            let cache = self.cache.lock().unwrap();
+            let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some((models, timestamp)) = cache.as_ref() {
                 if timestamp.elapsed() < self.cache_ttl {
                     return Ok(models.clone());
@@ -85,7 +85,7 @@ impl OllamaService {
 
         // Update cache
         {
-            let mut cache = self.cache.lock().unwrap();
+            let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
             *cache = Some((models.clone(), Instant::now()));
         }
 
