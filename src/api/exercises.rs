@@ -4,27 +4,14 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use serde::Deserialize;
 
-use crate::config::service::ConfigService;
-use crate::db::repository::SqliteConfigRepository;
 use crate::error::{AppError, Result};
 use crate::exercise::models::{
     ExerciseResponse, GenerateRequest, GenerateResponse, validate_language, validate_difficulty,
 };
-use crate::exercise::service::ExerciseService;
-use crate::material::fetcher::MaterialService;
-use crate::api::OllamaService;
 
-/// Shared application state type matching the router state.
-/// Extended from 3-tuple to 4-tuple to include ExerciseService.
-pub type AppState = (
-    Arc<ConfigService<SqliteConfigRepository>>,
-    Arc<OllamaService>,
-    Arc<MaterialService>,
-    Arc<ExerciseService>,
-);
+use super::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct ExerciseQueryParams {
@@ -34,7 +21,7 @@ pub struct ExerciseQueryParams {
 
 /// GET /api/exercises - List exercises with optional language/difficulty filtering.
 pub async fn get_exercises_handler(
-    State((_, _, _, exercise_service)): State<AppState>,
+    State((_, _, _, exercise_service, _)): State<AppState>,
     Query(params): Query<ExerciseQueryParams>,
 ) -> Result<impl IntoResponse> {
     let language = params.language.as_deref();
@@ -76,7 +63,7 @@ pub async fn get_exercises_handler(
 
 /// POST /api/exercises/generate - Trigger exercise generation for a language and difficulty.
 pub async fn generate_exercises_handler(
-    State((_, _, _, exercise_service)): State<AppState>,
+    State((_, _, _, exercise_service, _)): State<AppState>,
     Json(request): Json<GenerateRequest>,
 ) -> Result<impl IntoResponse> {
     // Validate language and difficulty (T-02-16)
@@ -119,7 +106,7 @@ pub async fn generate_exercises_handler(
 
 /// GET /api/exercises/:id - Get a single exercise by ID.
 pub async fn get_exercise_by_id_handler(
-    State((_, _, _, exercise_service)): State<AppState>,
+    State((_, _, _, exercise_service, _)): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse> {
     let exercise = exercise_service
@@ -132,7 +119,7 @@ pub async fn get_exercise_by_id_handler(
 
 /// DELETE /api/exercises/:id - Delete an exercise by ID.
 pub async fn delete_exercise_handler(
-    State((_, _, _, exercise_service)): State<AppState>,
+    State((_, _, _, exercise_service, _)): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse> {
     exercise_service.delete_exercise(id).await?;
