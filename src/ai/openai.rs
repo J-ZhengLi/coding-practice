@@ -143,7 +143,7 @@ async fn retry_chat_request(
     max_tokens: u32,
 ) -> Result<String, AiError> {
     let mut last_err = None;
-    for _ in 0..=MAX_RETRIES {
+    for _ in 0..MAX_RETRIES {
         match send_chat_request(client, model, system_prompt, user_prompt, temperature, max_tokens).await {
             Ok(content) => return Ok(content),
             Err(e @ AiError::InvalidResponse(_)) => {
