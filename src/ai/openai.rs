@@ -12,7 +12,7 @@ use async_openai::{
     },
 };
 
-use super::models::{AiError, AnalysisResult, ExerciseResult, ExerciseSection};
+use super::models::{AiError, AnalysisResult, ExerciseResult, ExerciseSection, EvaluationResult};
 use super::provider::AiProvider;
 use super::prompts;
 
@@ -217,6 +217,34 @@ impl AiProvider for OllamaProvider {
         serde_json::from_str::<ExerciseResult>(&content)
             .map_err(|e| AiError::InvalidResponse(format!("Failed to parse exercise result: {}", e)))
     }
+
+    async fn evaluate(
+        &self,
+        language: &str,
+        title: &str,
+        description: &str,
+        original_code: &str,
+        user_code: &str,
+        todo_comment: &str,
+    ) -> Result<EvaluationResult, AiError> {
+        let system_prompt = prompts::format_evaluate_system_prompt();
+        let user_prompt = prompts::format_evaluate_user_prompt(
+            language, title, description, original_code, user_code, todo_comment,
+        );
+
+        let content = retry_chat_request(
+            &self.client,
+            &self.model,
+            &system_prompt,
+            &user_prompt,
+            0.3,
+            4096,
+        )
+        .await?;
+
+        serde_json::from_str::<EvaluationResult>(&content)
+            .map_err(|e| AiError::InvalidResponse(format!("Failed to parse evaluation result: {}", e)))
+    }
 }
 
 #[async_trait::async_trait]
@@ -276,6 +304,34 @@ impl AiProvider for OpenAiProvider {
 
         serde_json::from_str::<ExerciseResult>(&content)
             .map_err(|e| AiError::InvalidResponse(format!("Failed to parse exercise result: {}", e)))
+    }
+
+    async fn evaluate(
+        &self,
+        language: &str,
+        title: &str,
+        description: &str,
+        original_code: &str,
+        user_code: &str,
+        todo_comment: &str,
+    ) -> Result<EvaluationResult, AiError> {
+        let system_prompt = prompts::format_evaluate_system_prompt();
+        let user_prompt = prompts::format_evaluate_user_prompt(
+            language, title, description, original_code, user_code, todo_comment,
+        );
+
+        let content = retry_chat_request(
+            &self.client,
+            &self.model,
+            &system_prompt,
+            &user_prompt,
+            0.3,
+            4096,
+        )
+        .await?;
+
+        serde_json::from_str::<EvaluationResult>(&content)
+            .map_err(|e| AiError::InvalidResponse(format!("Failed to parse evaluation result: {}", e)))
     }
 }
 
