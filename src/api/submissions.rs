@@ -19,6 +19,7 @@ pub struct SubmissionQueryParams {
 
 #[derive(Debug, Deserialize)]
 pub struct ProgressQueryParams {
+    pub date: Option<String>,
     pub language: Option<String>,
     pub difficulty: Option<String>,
     pub days: Option<i32>,
@@ -115,10 +116,12 @@ pub async fn get_solution_handler(
 /// GET /api/progress/daily - Get daily progress metrics (D-11, SCORE-03, SCORE-04).
 pub async fn get_daily_progress_handler(
     State((_, _, _, _, submission_service)): State<AppState>,
-    Query(_params): Query<ProgressQueryParams>,
+    Query(params): Query<ProgressQueryParams>,
 ) -> Result<impl IntoResponse> {
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let progress = submission_service.get_daily_progress(&today).await?;
+    let date = params.date.unwrap_or_else(|| {
+        chrono::Utc::now().format("%Y-%m-%d").to_string()
+    });
+    let progress = submission_service.get_daily_progress(&date).await?;
     Ok((StatusCode::OK, Json(progress)))
 }
 
