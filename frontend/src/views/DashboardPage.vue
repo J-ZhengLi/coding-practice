@@ -3,11 +3,17 @@ import { onMounted, ref, computed } from 'vue';
 import { useConfigStore } from '../stores/config';
 import { useExerciseStore } from '../stores/exercise';
 import { useMaterialStore } from '../stores/material';
+import { useProgressStore } from '../stores/progress';
+import { useSubmissionStore } from '../stores/submission';
 import { useRouter } from 'vue-router';
+import ProgressMetrics from '../components/ProgressMetrics.vue';
+import ExerciseHistoryCard from '../components/ExerciseHistoryCard.vue';
 
 const configStore = useConfigStore();
 const exerciseStore = useExerciseStore();
 const materialStore = useMaterialStore();
+const progressStore = useProgressStore();
+const submissionStore = useSubmissionStore();
 const router = useRouter();
 
 const generationError = ref<string | null>(null);
@@ -32,6 +38,9 @@ onMounted(async () => {
       exerciseStore.fetchExercises(language, difficulty),
       materialStore.fetchMaterials(language, difficulty),
     ]);
+
+    // Load progress history after exercises are loaded
+    await loadProgressHistory();
   }
 });
 
@@ -104,6 +113,53 @@ const truncateDescription = (desc: string, maxLength: number = 100): string => {
   if (desc.length <= maxLength) return desc;
   return desc.substring(0, maxLength) + '...';
 };
+
+const progressLoaded = ref(false);
+
+const loadProgressHistory = async () => {
+  if (progressLoaded.value) return;
+  progressLoaded.value = true;
+  // Load progress data
+  await Promise.all([
+    progressStore.fetchDailyProgress(),
+    progressStore.fetchScoreTrend(7),
+  ]);
+  // Load submissions for each exercise in the current list
+  for (const exercise of exerciseStore.exercises) {
+    await submissionStore.getSubmissionsByExercise(exercise.id);
+  }
+};
+
+const dailyAverage = computed(() => progressStore.dailyProgress?.avg_score ?? null);
+const dailyLetterGrade = computed(() => progressStore.dailyProgress?.letter_grade ?? null);
+const completionCount = computed(() => progressStore.dailyProgress?.completion_count ?? 0);
+const scoreTrend = computed(() => progressStore.scoreTrend?.scores ?? []);
+
+const exerciseHistory = computed(() => {
+  return exerciseStore.exercises.map(exercise => {
+    const exerciseSubmissions = submissionStore.submissions.filter(
+      s => s.exercise_id === exercise.id
+    );
+    const bestSub = exerciseSubmissions.reduce((best, s) =>
+      s.score > (best?.score ?? -1) ? s : best, null as any
+    );
+    return {
+      id: exercise.id,
+      title: exercise.title,
+      language: exercise.language,
+      difficulty: exercise.difficulty,
+      bestScore: bestSub?.score ?? 0,
+      bestLetterGrade: bestSub?.letter_grade ?? '-',
+      attemptCount: exerciseSubmissions.length,
+      submissions: exerciseSubmissions.map(s => ({
+        id: s.id,
+        score: s.score,
+        letter_grade: s.letter_grade,
+        submitted_at: s.submitted_at,
+      })),
+    };
+  }).filter(e => e.attemptCount > 0);
+});
 </script>
 
 <template>
@@ -209,6 +265,50 @@ const truncateDescription = (desc: string, maxLength: number = 100): string => {
               <p class="exercise-description">{{ truncateDescription(exercise.description) }}</p>
               <div class="exercise-concept">
                 <span class="concept-label">Concept:</span> {{ exercise.concept }}
+              </div>
+              <div class="exercise-actions">
+                <button class="start-btn" @click="router.push({ name: 'exercise-editor', params: { id: exercise.id } })">
+                  Start
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Section per D-09, D-11 -->
+        <div class="progress-section">
+          <h3>Progress</h3>
+
+          <div v-if="progressStore.loading" class="loading-text">Loading progress...</div>
+
+          <div v-else-if="!dailyAverage && exerciseHistory.length === 0" class="empty-state">
+            No submissions yet. Complete an exercise to see your progress.
+          </div>
+
+          <div v-else>
+            <!-- Metric cards per D-11 -->
+            <ProgressMetrics
+              :daily-average="dailyAverage"
+              :letter-grade="dailyLetterGrade"
+              :completion-count="completionCount"
+              :score-trend="scoreTrend"
+            />
+
+            <!-- Exercise History per D-10 -->
+            <div v-if="exerciseHistory.length > 0" class="history-section">
+              <h4>Exercise History</h4>
+              <div class="history-list">
+                <ExerciseHistoryCard
+                  v-for="entry in exerciseHistory"
+                  :key="entry.id"
+                  :exercise-title="entry.title"
+                  :language="entry.language"
+                  :difficulty="entry.difficulty"
+                  :best-score="entry.bestScore"
+                  :best-letter-grade="entry.bestLetterGrade"
+                  :attempt-count="entry.attemptCount"
+                  :submissions="entry.submissions"
+                />
               </div>
             </div>
           </div>
@@ -540,6 +640,58 @@ const truncateDescription = (desc: string, maxLength: number = 100): string => {
   padding: 3rem;
   color: #6b7280;
   font-size: 1.1rem;
+}
+
+.exercise-actions {
+  margin-top: 0.75rem;
+}
+
+.start-btn {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.start-btn:hover {
+  background-color: #2563eb;
+}
+
+.progress-section {
+  margin-top: 2rem;
+  background-color: #f9fafb;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+.progress-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 1rem;
+}
+
+.history-section {
+  margin-top: 1.5rem;
+}
+
+.history-section h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 1rem;
+}
+
+.history-list {
+  display: grid;
+  gap: 0.75rem;
 }
 
 @media (max-width: 768px) {
