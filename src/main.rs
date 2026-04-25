@@ -7,6 +7,7 @@ mod material;
 mod exercise;
 mod submission;
 mod scoring;
+mod schedule;
 
 use axum::{
     routing::{get, post, delete},
@@ -88,13 +89,17 @@ async fn main() -> anyhow::Result<()> {
     let submission_repository = db::SqliteSubmissionRepository::new(db_pool.clone());
     let submission_service = Arc::new(submission::SubmissionService::new(submission_repository));
 
+    // Setup schedule services
+    let review_schedule_repository = db::SqliteReviewScheduleRepository::new(db_pool.clone());
+    let schedule_service = Arc::new(schedule::ScheduleService::new(review_schedule_repository));
+
     // Setup CORS
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Build router with 5-tuple state including SubmissionService
+    // Build router with 6-tuple state including SubmissionService and ScheduleService
     let app = Router::new()
         .route("/api/config", get(api::get_config_handler).post(api::save_config_handler))
         .route("/api/config/check", get(api::check_configured_handler))
@@ -111,9 +116,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/submissions/{id}/solution", get(api::get_solution_handler))
         .route("/api/progress/daily", get(api::get_daily_progress_handler))
         .route("/api/progress/trend", get(api::get_score_trend_handler))
+        .route("/api/schedule/daily-plan", get(api::get_daily_plan_handler))
+        .route("/api/schedule/status", get(api::get_schedule_status_handler))
         .route("/health", get(health_check))
         .layer(cors)
-        .with_state((config_service.clone(), ollama_service.clone(), material_service.clone(), exercise_service.clone(), submission_service.clone()));
+        .with_state((config_service.clone(), ollama_service.clone(), material_service.clone(), exercise_service.clone(), submission_service.clone(), schedule_service.clone()));
 
     // Start server
     let addr = SocketAddr::from(([127, 0,  0, 1], port));

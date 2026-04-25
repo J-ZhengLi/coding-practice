@@ -9,14 +9,14 @@ use crate::error::Result;
 use super::AppState;
 
 pub async fn get_config_handler(
-    State((config_service, _, _, _, _)): State<AppState>,
+    State((config_service, _, _, _, _, _)): State<AppState>,
 ) -> Result<impl IntoResponse> {
     let config = config_service.get_config().await?;
     Ok((StatusCode::OK, Json(config)))
 }
 
 pub async fn save_config_handler(
-    State((config_service, _, _, _, _)): State<AppState>,
+    State((config_service, _, _, _, _, _)): State<AppState>,
     Json(request): Json<ConfigRequest>,
 ) -> Result<impl IntoResponse> {
     let config = UserConfig::from(request);
@@ -25,7 +25,7 @@ pub async fn save_config_handler(
 }
 
 pub async fn check_configured_handler(
-    State((config_service, _, _, _, _)): State<AppState>,
+    State((config_service, _, _, _, _, _)): State<AppState>,
 ) -> Result<impl IntoResponse> {
     let is_configured = config_service.is_configured().await?;
     Ok((StatusCode::OK, Json(serde_json::json!({"configured": is_configured}))))
