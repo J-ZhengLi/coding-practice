@@ -116,7 +116,7 @@ impl<R: ReviewScheduleRepository> ScheduleService<R> {
         language: Option<&str>,
     ) -> Result<DailyPlanResponse> {
         let config = config_service.get_config().await
-            .map_err(|e| AppError::Internal(e))?;
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("{}", e)))?;
 
         let mut all_review_exercises: Vec<DailyPlanExercise> = Vec::new();
         let mut all_new_exercises: Vec<DailyPlanExercise> = Vec::new();

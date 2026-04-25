@@ -52,7 +52,7 @@ impl From<crate::db::models::Material> for MaterialResponse {
 
 /// GET /api/materials - List cached materials with optional filtering.
 pub async fn get_materials_handler(
-    State((_, _, material_service, _, _)): State<AppState>,
+    State((_, _, material_service, _, _, _)): State<AppState>,
     Query(params): Query<MaterialQueryParams>,
 ) -> Result<impl IntoResponse> {
     let language = params.language.as_deref();
@@ -72,7 +72,7 @@ pub async fn get_materials_handler(
 
 /// POST /api/materials/fetch - Trigger material fetching for a language and difficulty.
 pub async fn fetch_materials_handler(
-    State((_, _, material_service, _, _)): State<AppState>,
+    State((_, _, material_service, _, _, _)): State<AppState>,
     Json(request): Json<FetchMaterialRequest>,
 ) -> Result<impl IntoResponse> {
     let materials = material_service
@@ -88,7 +88,7 @@ pub async fn fetch_materials_handler(
 
 /// POST /api/materials/:id/refresh - Refresh a specific cached material.
 pub async fn refresh_material_handler(
-    State((_, _, material_service, _, _)): State<AppState>,
+    State((_, _, material_service, _, _, _)): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse> {
     let material = material_service
@@ -101,7 +101,7 @@ pub async fn refresh_material_handler(
 
 /// DELETE /api/materials/:id - Delete a cached material.
 pub async fn delete_material_handler(
-    State((_, _, material_service, _, _)): State<AppState>,
+    State((_, _, material_service, _, _, _)): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse> {
     // Delete from cache (DB + filesystem)

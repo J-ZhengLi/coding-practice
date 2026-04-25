@@ -25,12 +25,12 @@ pub async fn get_daily_plan_handler(
     State(state): State<AppState>,
     Query(params): Query<DailyPlanQueryParams>,
 ) -> Result<impl IntoResponse> {
-    let (config_service, _, exercise_service, submission_service, schedule_service) = state;
+    let (config_service, _, _, exercise_service, submission_service, schedule_service) = state;
 
     let daily_plan = schedule_service.get_daily_plan(
         &config_service,
         exercise_service.exercise_repo().as_ref(),
-        submission_service.submission_repo().as_ref(),
+        submission_service.submission_repo() as &dyn crate::db::submission_repo::SubmissionRepository,
         params.language.as_deref(),
     ).await?;
 

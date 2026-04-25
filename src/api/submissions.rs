@@ -30,10 +30,10 @@ pub async fn submit_code_handler(
     State(state): State<AppState>,
     Json(request): Json<SubmitCodeRequest>,
 ) -> Result<impl IntoResponse> {
-    let (config_service, _, _, exercise_service, submission_service) = state;
+    let (config_service, _, _, exercise_service, submission_service, schedule_service) = state;
 
     // Validate exercise exists (T-03-08: validate exercise_id before processing)
-    let _exercise = exercise_service
+    let exercise = exercise_service
         .get_exercise_by_id(request.exercise_id)
         .await?
         .ok_or_else(|| {
@@ -61,13 +61,27 @@ pub async fn submit_code_handler(
         )
         .await?;
 
+    let submission_score = submission.score;
     let response = SubmissionResponse::from(submission);
+
+    // Per D-01, D-02: update review schedule after successful submission
+    // Per Pitfall 5 (RESEARCH.md): schedule update happens AFTER submission is stored
+    if let Ok(_config) = config_service.get_config().await {
+        let _ = schedule_service.on_submission_completed(
+            &exercise.concept,
+            &exercise.language,
+            submission_score,
+            exercise.id,   // Pass exercise_id per D-01 for different-exercise selection
+        ).await;
+        // Ignore schedule errors -- submission is already stored successfully
+    }
+
     Ok((StatusCode::CREATED, Json(response)))
 }
 
 /// GET /api/submissions/:id - Get a single submission by ID (EX-06, EX-08).
 pub async fn get_submission_handler(
-    State((_, _, _, _, submission_service)): State<AppState>,
+    State((_, _, _, _, submission_service, _)): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse> {
     let submission = submission_service
@@ -80,7 +94,7 @@ pub async fn get_submission_handler(
 
 /// GET /api/submissions?exercise_id=X - Get submissions for an exercise (EX-08).
 pub async fn get_submissions_handler(
-    State((_, _, _, _, submission_service)): State<AppState>,
+    State((_, _, _, _, submission_service, _)): State<AppState>,
     Query(params): Query<SubmissionQueryParams>,
 ) -> Result<impl IntoResponse> {
     let submissions = match params.exercise_id {
@@ -104,7 +118,7 @@ pub async fn get_submissions_handler(
 
 /// GET /api/submissions/:id/solution - View solution comparison (D-08, WEB-11).
 pub async fn get_solution_handler(
-    State((_, _, _, exercise_service, submission_service)): State<AppState>,
+    State((_, _, _, exercise_service, submission_service, _)): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse> {
     let solution = submission_service
@@ -115,7 +129,7 @@ pub async fn get_solution_handler(
 
 /// GET /api/progress/daily - Get daily progress metrics (D-11, SCORE-03, SCORE-04).
 pub async fn get_daily_progress_handler(
-    State((_, _, _, _, submission_service)): State<AppState>,
+    State((_, _, _, _, submission_service, _)): State<AppState>,
     Query(params): Query<ProgressQueryParams>,
 ) -> Result<impl IntoResponse> {
     let date = params.date.unwrap_or_else(|| {
@@ -127,7 +141,7 @@ pub async fn get_daily_progress_handler(
 
 /// GET /api/progress/trend - Get 7-day score trend (D-11).
 pub async fn get_score_trend_handler(
-    State((_, _, _, _, submission_service)): State<AppState>,
+    State((_, _, _, _, submission_service, _)): State<AppState>,
     Query(params): Query<ProgressQueryParams>,
 ) -> Result<impl IntoResponse> {
     let days = params.days.unwrap_or(7);
