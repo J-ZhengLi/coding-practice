@@ -17,4 +17,13 @@
   --color-grade-f-bg: #fef2f2;
   --color-grade-f-text: #991b1b;
   --color-grade-f-border: #fecaca;
+
+  /* Review badge colors per Phase 4 UI-SPEC */
+  --color-review-badge-bg: #fef3c7;
+  --color-review-badge-text: #92400e;
+
+  /* Schedule status colors */
+  --color-schedule-completed: #22c55e;
+  --color-schedule-pending: #d1d5db;
+  --color-schedule-overdue: #f59e0b;
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useExerciseStore } from '../stores/exercise';
+import { useScheduleStore } from '../stores/schedule';
 
 const props = defineProps<{
   selectedId: number | null;
@@ -12,6 +13,7 @@ const emit = defineEmits<{
 }>();
 
 const exerciseStore = useExerciseStore();
+const scheduleStore = useScheduleStore();
 
 const languageLabel = (lang: string): string => {
   const labels: Record<string, string> = { python: 'Python', rust: 'Rust', go: 'Go', cpp: 'C++' };
@@ -56,6 +58,7 @@ const languageBadgeColor = (lang: string): string => {
         <template v-if="!collapsed">
           <span class="exercise-item-title">{{ exercise.title }}</span>
           <div class="exercise-item-badges">
+            <span v-if="scheduleStore.isReviewExercise(exercise.id)" class="badge bg-amber-100 text-amber-800">Review</span>
             <span :class="['badge', languageBadgeColor(exercise.language)]">{{ languageLabel(exercise.language) }}</span>
             <span :class="['badge', difficultyColor(exercise.difficulty)]">{{ exercise.difficulty }}</span>
           </div>
