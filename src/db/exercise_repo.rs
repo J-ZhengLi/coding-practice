@@ -13,6 +13,7 @@ pub trait ExerciseRepository: Send + Sync {
     async fn delete(&self, id: i64) -> Result<()>;
     async fn get_all(&self) -> Result<Vec<Exercise>>;
     async fn count_by_language_and_difficulty(&self, language: &str, difficulty: &str) -> Result<i64>;
+    async fn get_by_concept(&self, concept: &str, language: &str) -> Result<Vec<Exercise>>;
 }
 
 pub struct SqliteExerciseRepository {
@@ -116,5 +117,16 @@ impl ExerciseRepository for SqliteExerciseRepository {
         .await
         .map_err(|e| anyhow::anyhow!("Failed to count exercises: {}", e))?;
         Ok(count)
+    }
+
+    async fn get_by_concept(&self, concept: &str, language: &str) -> Result<Vec<Exercise>> {
+        sqlx::query_as::<_, Exercise>(
+            "SELECT id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, generated_at FROM exercises WHERE concept = ? AND language = ?"
+        )
+        .bind(concept)
+        .bind(language)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to fetch exercises by concept: {}", e))
     }
 }

@@ -20,6 +20,11 @@ impl<R: SubmissionRepository> SubmissionService<R> {
         Self { submission_repo }
     }
 
+    /// Get a reference to the submission repository (for direct queries).
+    pub fn submission_repo(&self) -> &R {
+        &self.submission_repo
+    }
+
     /// Submit code for an exercise: call AI evaluate, compute grade, store, return result.
     /// Per D-07: unlimited re-submissions allowed - each creates a new submission.
     /// Per SCORE-01: score is 0-100 based on structural completeness comparison.
