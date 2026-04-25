@@ -6,7 +6,7 @@ use crate::db::models::{Material, NewMaterial};
 use crate::db::repository::SqliteConfigRepository;
 use crate::material::cache::MaterialCache;
 use crate::material::github::{GitHubClient, MaterialError};
-use crate::material::models::estimate_difficulty;
+use crate::material::models::{estimate_difficulty, is_valid_code_block};
 use crate::material::scraper::TutorialScraper;
 
 /// Service orchestrating GitHub fetching, tutorial scraping, and caching.
@@ -122,6 +122,12 @@ impl MaterialService {
                     .await
                 {
                     Ok(content) => {
+                        // Skip low-quality material (one-liners, trees, wrong language)
+                        if !is_valid_code_block(&content, language) {
+                            debug!("Skipping low-quality material: {}/{}", repo.full_name, file.path);
+                            continue;
+                        }
+
                         let estimated_diff =
                             estimate_difficulty(&file.name, language);
 

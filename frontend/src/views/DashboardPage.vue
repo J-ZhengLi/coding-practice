@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue';
-import { useConfigStore } from '../stores/config';
+import { useConfigStore, type LanguageSkillLevel } from '../stores/config';
 import { useExerciseStore } from '../stores/exercise';
 import { useMaterialStore } from '../stores/material';
 import { useProgressStore } from '../stores/progress';
@@ -20,6 +20,27 @@ const router = useRouter();
 
 const generationError = ref<string | null>(null);
 
+/** Look up the skill level for a given language from the skill_levels array. */
+const getSkillLevelForLanguage = (language: string): string | undefined => {
+  return configStore.config?.skill_levels?.find((s: LanguageSkillLevel) => s.language === language)?.skill_level;
+};
+
+/** Get the skill level for the preferred language, falling back to the first skill level. */
+const preferredDifficulty = computed(() => {
+  if (!configStore.config) return undefined;
+  return getSkillLevelForLanguage(configStore.config.preferred_language)
+    || configStore.config.skill_levels?.[0]?.skill_level;
+});
+
+/** Combine languages with their skill levels for the "Languages to Learn" display. */
+const languagesWithSkillLevels = computed(() => {
+  if (!configStore.config) return [];
+  return configStore.config.skill_levels.map((sl: LanguageSkillLevel) => ({
+    language: sl.language,
+    skill_level: sl.skill_level,
+  }));
+});
+
 onMounted(async () => {
   // Ensure configuration is loaded
   if (!configStore.config) {
@@ -35,7 +56,7 @@ onMounted(async () => {
   // Load existing exercises and materials for dashboard display
   if (configStore.config) {
     const language = configStore.config.preferred_language;
-    const difficulty = configStore.config.skill_level;
+    const difficulty = preferredDifficulty.value;
     await Promise.all([
       exerciseStore.fetchExercises(language, difficulty),
       materialStore.fetchMaterials(language, difficulty),
@@ -100,11 +121,21 @@ const handleGenerateExercises = async () => {
   if (!configStore.config) return;
 
   generationError.value = null;
-  const { preferred_language, skill_level } = configStore.config;
+  const language = configStore.config.preferred_language;
+  const difficulty = preferredDifficulty.value;
 
-  const result = await exerciseStore.generateExercises(preferred_language, skill_level);
+  if (!difficulty) {
+    generationError.value = 'No skill level found for preferred language. Please reconfigure.';
+    return;
+  }
+
+  const result = await exerciseStore.generateExercises(language, difficulty);
   if (!result && exerciseStore.error) {
     generationError.value = exerciseStore.error;
+  } else if (result && result.generated_count === 0) {
+    generationError.value = 'No exercises could be generated. Check that materials are available and the AI provider is running.';
+  } else if (result) {
+    await scheduleStore.fetchDailyPlan(configStore.config.preferred_language);
   }
 };
 
@@ -186,14 +217,16 @@ const exerciseHistory = computed(() => {
         <p>You're all set to start your programming journey!</p>
 
         <div class="summary-grid">
-          <div class="summary-card">
-            <h3>Preferred Language</h3>
-            <p class="summary-value">{{ languageLabel(configStore.config.preferred_language) }}</p>
-          </div>
-
-          <div class="summary-card">
-            <h3>Skill Level</h3>
-            <p class="summary-value">{{ skillLevelLabel(configStore.config.skill_level) }}</p>
+          <div class="summary-card languages-card">
+            <h3>Languages to Learn</h3>
+            <ul class="language-skill-list">
+              <li v-for="lang in languagesWithSkillLevels" :key="lang.language">
+                <span class="language-name">{{ languageLabel(lang.language) }}</span>
+                <span :class="['badge', difficultyColor(lang.skill_level)]">
+                  {{ skillLevelLabel(lang.skill_level) }}
+                </span>
+              </li>
+            </ul>
           </div>
 
           <div class="summary-card">
@@ -376,7 +409,7 @@ const exerciseHistory = computed(() => {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: 2fr 1fr;
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
@@ -402,6 +435,30 @@ const exerciseHistory = computed(() => {
   font-weight: 600;
   color: #1f2937;
   margin: 0;
+}
+
+.languages-card {
+  text-align: left;
+}
+
+.language-skill-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.language-skill-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.language-name {
+  font-weight: 600;
+  color: #1f2937;
 }
 
 .quota-summary {

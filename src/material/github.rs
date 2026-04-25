@@ -90,16 +90,15 @@ impl GitHubClient {
 
     /// Search GitHub repositories by query and language.
     /// Returns top 10 repos sorted by stars.
+    /// Returns empty vec on rate limit (403) instead of erroring.
     pub async fn search_repositories(
         &self,
         query: &str,
         language: &str,
     ) -> Result<Vec<RepoInfo>, MaterialError> {
         if !self.check_rate_limit()? {
-            let reset = self.rate_limit_reset.lock().unwrap();
-            return Err(MaterialError::RateLimited {
-                reset_at: reset.unwrap_or(0),
-            });
+            warn!("GitHub API rate limit too low, skipping search");
+            return Ok(vec![]);
         }
 
         let url = format!(
@@ -111,6 +110,13 @@ impl GitHubClient {
         let response = self.client.get(&url).send().await?;
 
         self.update_rate_limits(&response);
+
+        if response.status().as_u16() == 403 {
+            // Rate limited — set remaining to 0 and return empty
+            self.rate_limit_remaining.store(0, Ordering::SeqCst);
+            warn!("GitHub API rate limit hit during search, returning empty results");
+            return Ok(vec![]);
+        }
 
         if !response.status().is_success() {
             let status = response.status();
@@ -144,9 +150,8 @@ impl GitHubClient {
         path: &str,
     ) -> Result<String, MaterialError> {
         if !self.check_rate_limit()? {
-            let reset = self.rate_limit_reset.lock().unwrap();
             return Err(MaterialError::RateLimited {
-                reset_at: reset.unwrap_or(0),
+                reset_at: self.rate_limit_reset.lock().unwrap().unwrap_or(0),
             });
         }
 
@@ -163,6 +168,13 @@ impl GitHubClient {
             .await?;
 
         self.update_rate_limits(&response);
+
+        if response.status().as_u16() == 403 {
+            self.rate_limit_remaining.store(0, Ordering::SeqCst);
+            return Err(MaterialError::RateLimited {
+                reset_at: self.rate_limit_reset.lock().unwrap().unwrap_or(0),
+            });
+        }
 
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Err(MaterialError::NotFound(format!(
@@ -184,6 +196,7 @@ impl GitHubClient {
     }
 
     /// List files in a GitHub repository directory, filtered by language extensions.
+    /// Returns empty vec on rate limit (403) instead of erroring.
     pub async fn list_repository_files(
         &self,
         owner: &str,
@@ -192,10 +205,8 @@ impl GitHubClient {
         language: &str,
     ) -> Result<Vec<RepoFileInfo>, MaterialError> {
         if !self.check_rate_limit()? {
-            let reset = self.rate_limit_reset.lock().unwrap();
-            return Err(MaterialError::RateLimited {
-                reset_at: reset.unwrap_or(0),
-            });
+            warn!("GitHub API rate limit too low, skipping file list");
+            return Ok(vec![]);
         }
 
         let url = format!(
@@ -211,6 +222,12 @@ impl GitHubClient {
             .await?;
 
         self.update_rate_limits(&response);
+
+        if response.status().as_u16() == 403 {
+            self.rate_limit_remaining.store(0, Ordering::SeqCst);
+            warn!("GitHub API rate limit hit during file listing, returning empty");
+            return Ok(vec![]);
+        }
 
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(vec![]);

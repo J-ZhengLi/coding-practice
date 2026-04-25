@@ -3,7 +3,13 @@ use std::time::Duration;
 use tracing::{debug, warn};
 
 use crate::material::github::MaterialError;
-use crate::material::models::{CURATED_SITES, FileContent, TutorialSource};
+use crate::material::models::{CURATED_SITES, FileContent, TutorialSource, is_valid_code_block};
+
+/// Maximum number of sub-pages to follow from a tutorial index page.
+const MAX_SUBPAGES: usize = 20;
+
+/// Minimum code block length to include (filters out trivial snippets).
+const MIN_CODE_BLOCK_LEN: usize = 20;
 
 /// Scraper for extracting code blocks from curated tutorial sites.
 pub struct TutorialScraper {
@@ -26,7 +32,6 @@ impl TutorialScraper {
     pub async fn fetch_page(&self, url: &str) -> Result<String, MaterialError> {
         debug!("Fetching tutorial page: {}", url);
 
-        // Validate URL against curated whitelist for security (T-02-12)
         let response = self
             .client
             .get(url)
@@ -71,17 +76,114 @@ impl TutorialScraper {
             .collect()
     }
 
+    /// Extract internal links from an index page that point to sub-pages
+    /// of the same tutorial site. Only returns links under the same base path.
+    fn extract_subpage_links(&self, html: &str, base_url: &str) -> Vec<String> {
+        let document = Html::parse_document(html);
+        let link_selector = match Selector::parse("a[href]") {
+            Ok(s) => s,
+            Err(_) => return vec![],
+        };
+
+        // Normalize base URL to determine the path prefix
+        let base_path = url::Url::parse(base_url)
+            .ok()
+            .and_then(|u| {
+                let path = u.path();
+                // Use parent directory as prefix for sub-pages
+                if path.ends_with('/') {
+                    Some(path.to_string())
+                } else {
+                    Some(format!("{}/", path.rfind('/').unwrap_or(0)))
+                }
+            })
+            .unwrap_or_default();
+
+        let mut links: Vec<String> = document
+            .select(&link_selector)
+            .filter_map(|el| el.value().attr("href"))
+            .filter_map(|href| {
+                // Only follow relative links or same-origin links
+                if href.starts_with("http") || href.starts_with("//") || href.starts_with('#') {
+                    return None;
+                }
+                // Remove anchor fragments
+                let href = href.split('#').next().unwrap_or(href);
+                if href.is_empty() {
+                    return None;
+                }
+                // Resolve relative URL against base_url
+                url::Url::parse(base_url)
+                    .ok()
+                    .and_then(|base| base.join(href).ok())
+                    .map(|resolved| resolved.to_string())
+            })
+            .filter(|link| link != base_url && link.as_str() != base_url.trim_end_matches('/'))
+            .filter(|link| {
+                // Only follow links under the same base path
+                link.starts_with(&base_url.trim_end_matches('/'))
+            })
+            .collect();
+
+        links.sort();
+        links.dedup();
+        links.truncate(MAX_SUBPAGES);
+        links
+    }
+
     /// Fetch tutorial code blocks from a curated source.
-    /// Validates the URL against the curated whitelist before fetching.
+    /// First tries the base URL; if no code blocks found, follows
+    /// sub-page links from the index page and scrapes those.
     pub async fn fetch_tutorial_code(
         &self,
         source: &TutorialSource,
     ) -> Result<Vec<FileContent>, MaterialError> {
         let html = self.fetch_page(&source.base_url).await?;
-        let code_blocks = self.extract_code_blocks(&html, &source.code_selector);
+        let mut code_blocks = self.extract_code_blocks(&html, &source.code_selector);
 
         debug!(
-            "Extracted {} code blocks from {}",
+            "Extracted {} code blocks from {} (index page)",
+            code_blocks.len(),
+            source.name
+        );
+
+        // If index page has no code blocks, follow sub-page links
+        if code_blocks.is_empty() {
+            let subpage_links = self.extract_subpage_links(&html, &source.base_url);
+
+            debug!(
+                "Found {} sub-page links for {}",
+                subpage_links.len(),
+                source.name
+            );
+
+            for link in &subpage_links {
+                match self.fetch_page(link).await {
+                    Ok(sub_html) => {
+                        let sub_blocks = self.extract_code_blocks(&sub_html, &source.code_selector);
+                        debug!("Extracted {} code blocks from {}", sub_blocks.len(), link);
+                        code_blocks.extend(sub_blocks);
+                    }
+                    Err(e) => {
+                        warn!("Failed to fetch sub-page {}: {}", link, e);
+                    }
+                }
+
+                // Stop early if we have enough material
+                if code_blocks.len() >= MAX_SUBPAGES * 2 {
+                    break;
+                }
+            }
+        }
+
+        // Filter out trivially short code blocks and low-quality material
+        code_blocks.retain(|block| {
+            block.trim().len() >= MIN_CODE_BLOCK_LEN
+                && is_valid_code_block(block, &source.language)
+        });
+
+        debug!(
+            "Total {} code blocks from {} (after filtering)",
             code_blocks.len(),
             source.name
         );

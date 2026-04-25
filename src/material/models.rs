@@ -42,7 +42,7 @@ pub static CURATED_SITES: LazyLock<Vec<TutorialSource>> = LazyLock::new(|| {
             name: "Go by Example".to_string(),
             base_url: "https://gobyexample.com/".to_string(),
             language: "go".to_string(),
-            code_selector: ".highlight pre code".to_string(),
+            code_selector: "pre.chroma code".to_string(),
         },
         TutorialSource {
             name: "Python Tutorial".to_string(),
@@ -54,7 +54,7 @@ pub static CURATED_SITES: LazyLock<Vec<TutorialSource>> = LazyLock::new(|| {
             name: "cppreference".to_string(),
             base_url: "https://en.cppreference.com/w/cpp/language".to_string(),
             language: "cpp".to_string(),
-            code_selector: ".mw-content-ltr pre".to_string(),
+            code_selector: "pre".to_string(),
         },
     ]
 });
@@ -142,5 +142,83 @@ pub fn language_from_extension(path: &str) -> Option<&'static str> {
         Some("cpp")
     } else {
         None
+    }
+}
+
+/// Minimum number of non-comment lines for a code block to be worth storing.
+const MIN_CODE_LINES: usize = 3;
+
+/// Characters that indicate a directory tree listing (not real code).
+const TREE_CHARS: &[&str] = &["├──", "└──", "│", "├─", "└─"];
+
+/// Check if a code block is high-quality enough to store as material.
+/// Filters out: one-liners, comment-only blocks, directory trees, wrong-language code.
+pub fn is_valid_code_block(content: &str, expected_language: &str) -> bool {
+    let lines: Vec<&str> = content.lines().collect();
+
+    // Skip if fewer than MIN_CODE_LINES lines
+    if lines.len() < MIN_CODE_LINES {
+        return false;
+    }
+
+    // Skip directory tree listings
+    if lines.iter().any(|line| TREE_CHARS.iter().any(|tc| line.contains(tc))) {
+        return false;
+    }
+
+    // Skip comment-only blocks: all non-empty lines are comments
+    let non_empty_lines: Vec<&str> = lines.iter().filter(|l| !l.trim().is_empty()).copied().collect();
+    if non_empty_lines.is_empty() {
+        return false;
+    }
+    let all_comments = non_empty_lines.iter().all(|line| {
+        let trimmed = line.trim();
+        trimmed.starts_with("//")
+            || trimmed.starts_with('#')
+            || trimmed.starts_with("--")
+            || trimmed.starts_with("/*")
+            || trimmed.starts_with('*')
+            || trimmed.starts_with(";")
+    });
+    if all_comments {
+        return false;
+    }
+
+    // Skip wrong-language code using heuristic markers
+    if contains_wrong_language(content, expected_language) {
+        return false;
+    }
+
+    true
+}
+
+/// Detect if code content appears to be the wrong language.
+/// Uses distinctive syntax markers that are unlikely in the expected language.
+fn contains_wrong_language(content: &str, expected_language: &str) -> bool {
+    match expected_language {
+        "rust" => {
+            // Python markers that shouldn't appear in Rust code
+            content.contains("def ") && content.contains("self")
+            || content.contains("import flask")
+            || content.contains("if __name__")
+        }
+        "python" => {
+            // Rust markers that shouldn't appear in Python code
+            content.contains("fn main()")
+            || content.contains("let mut ")
+            || content.contains("impl ")
+        }
+        "go" => {
+            // Python/Rust markers that shouldn't appear in Go code
+            (content.contains("def ") && content.contains("self"))
+            || content.contains("fn main()")
+            || content.contains("let mut ")
+        }
+        "cpp" => {
+            // Python markers that shouldn't appear in C++ code
+            content.contains("def ") && content.contains("self")
+            || content.contains("import flask")
+        }
+        _ => false,
     }
 }
