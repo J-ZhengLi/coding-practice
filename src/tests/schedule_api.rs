@@ -7,11 +7,10 @@ use crate::db::review_schedule_repo::SqliteReviewScheduleRepository;
 use crate::db::exercise_repo::{ExerciseRepository, SqliteExerciseRepository};
 use crate::db::submission_repo::{SubmissionRepository, SqliteSubmissionRepository};
 use crate::db::repository::SqliteConfigRepository;
+use crate::db::material_repo::{MaterialRepository, SqliteMaterialRepository};
 use crate::db::models::NewReviewSchedule;
 use crate::schedule::ScheduleService;
 use crate::config::service::ConfigService;
-use crate::exercise::service::ExerciseService;
-use crate::submission::service::SubmissionService;
 use chrono::naive::NaiveDate;
 
 async fn setup_test_db() -> SqlitePool {
@@ -27,6 +26,47 @@ async fn setup_test_db() -> SqlitePool {
     pool
 }
 
+/// Helper: insert a material row and return its id.
+/// Exercises have a FK on material_id, so we need a material first.
+async fn insert_test_material(pool: &SqlitePool, language: &str) -> i64 {
+    let material_repo = SqliteMaterialRepository::new(pool.clone());
+    let material = material_repo.insert(crate::db::models::NewMaterial {
+        source_url: format!("https://example.com/test-{}", language),
+        source_type: "tutorial".to_string(),
+        language: language.to_string(),
+        title: format!("Test Material for {}", language),
+        difficulty: "beginner".to_string(),
+        local_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+    material.id
+}
+
+/// Helper: save a config with daily quotas for a language.
+/// ConfigService.get_config() requires all 4 language quotas, so we include all of them.
+fn make_test_config(language: &str, quota: u32) -> crate::config::model::UserConfig {
+    crate::config::model::UserConfig {
+        preferred_language: language.to_string(),
+        skill_levels: vec![crate::config::model::LanguageSkillLevel {
+            language: language.to_string(),
+            skill_level: "beginner".to_string(),
+        }],
+        daily_quotas: vec![
+            crate::config::model::LanguageQuota { language: "python".to_string(), quota: if language == "python" { quota } else { 5 } },
+            crate::config::model::LanguageQuota { language: "rust".to_string(), quota: if language == "rust" { quota } else { 5 } },
+            crate::config::model::LanguageQuota { language: "go".to_string(), quota: if language == "go" { quota } else { 5 } },
+            crate::config::model::LanguageQuota { language: "cpp".to_string(), quota: if language == "cpp" { quota } else { 5 } },
+        ],
+        ai_model: "test-model".to_string(),
+        ai_model_type: crate::config::model::ModelType::Local,
+        email: None,
+        gmail_client_id: None,
+        gmail_client_secret: None,
+        smtp_host: None,
+        smtp_port: None,
+        smtp_user: None,
+    }
+}
+
 #[tokio::test]
 async fn test_get_daily_plan_returns_exercises() {
     // Per D-05, MEM-06: daily plan returns exercises (reviews + new)
@@ -38,6 +78,9 @@ async fn test_get_daily_plan_returns_exercises() {
     let exercise_repo = SqliteExerciseRepository::new(pool.clone());
     let submission_repo = SqliteSubmissionRepository::new(pool.clone());
 
+    // Save a config so get_daily_plan can read quotas
+    config_service.save_config(&make_test_config("python", 5)).await.unwrap();
+
     // Call get_daily_plan and verify it returns a DailyPlanResponse
     let plan = schedule_service.get_daily_plan(
         &config_service,
@@ -47,7 +90,6 @@ async fn test_get_daily_plan_returns_exercises() {
     ).await.unwrap();
 
     // Verify response structure: exercises vec and summary with counts
-    assert!(plan.exercises.len() >= 0);
     assert_eq!(plan.summary.new_count + plan.summary.review_count, plan.exercises.len() as i32);
 }
 
@@ -63,32 +105,14 @@ async fn test_get_daily_plan_respects_quotas() {
     let submission_repo = SqliteSubmissionRepository::new(pool.clone());
 
     // Save a config with quota_python = 2
-    let config = crate::config::model::UserConfig {
-        preferred_language: "python".to_string(),
-        skill_levels: vec![crate::config::model::LanguageSkillLevel {
-            language: "python".to_string(),
-            skill_level: "beginner".to_string(),
-        }],
-        daily_quotas: vec![crate::config::model::LanguageQuota {
-            language: "python".to_string(),
-            quota: 2,
-        }],
-        ai_model: "test-model".to_string(),
-        ai_model_type: crate::config::model::ModelType::Local,
-        email: None,
-        gmail_client_id: None,
-        gmail_client_secret: None,
-        smtp_host: None,
-        smtp_port: None,
-        smtp_user: None,
-    };
-    config_service.save_config(&config).await.unwrap();
+    config_service.save_config(&make_test_config("python", 2)).await.unwrap();
 
-    // Insert exercises for unscheduled concepts
+    // Insert a material and then exercises for unscheduled concepts
+    let material_id = insert_test_material(&pool, "python").await;
     let exercise_repo_ref = SqliteExerciseRepository::new(pool.clone());
     for i in 1..=5i64 {
         exercise_repo_ref.insert(crate::db::models::NewExercise {
-            material_id: 1,
+            material_id,
             title: format!("Exercise {}", i),
             description: format!("Description {}", i),
             language: "python".to_string(),
@@ -125,31 +149,15 @@ async fn test_daily_plan_reviews_extra() {
     let submission_repo = SqliteSubmissionRepository::new(pool.clone());
 
     // Save a config with quota_python = 2
-    let config = crate::config::model::UserConfig {
-        preferred_language: "python".to_string(),
-        skill_levels: vec![crate::config::model::LanguageSkillLevel {
-            language: "python".to_string(),
-            skill_level: "beginner".to_string(),
-        }],
-        daily_quotas: vec![crate::config::model::LanguageQuota {
-            language: "python".to_string(),
-            quota: 2,
-        }],
-        ai_model: "test-model".to_string(),
-        ai_model_type: crate::config::model::ModelType::Local,
-        email: None,
-        gmail_client_id: None,
-        gmail_client_secret: None,
-        smtp_host: None,
-        smtp_port: None,
-        smtp_user: None,
-    };
-    config_service.save_config(&config).await.unwrap();
+    config_service.save_config(&make_test_config("python", 2)).await.unwrap();
+
+    // Insert a material for the exercises
+    let material_id = insert_test_material(&pool, "python").await;
 
     // Insert exercises for a concept that will have a due review
     let exercise_repo_ref = SqliteExerciseRepository::new(pool.clone());
     exercise_repo_ref.insert(crate::db::models::NewExercise {
-        material_id: 1,
+        material_id,
         title: "Review Exercise A".to_string(),
         description: "A review exercise".to_string(),
         language: "python".to_string(),
@@ -163,7 +171,7 @@ async fn test_daily_plan_reviews_extra() {
     }).await.unwrap();
     // Insert a second exercise for the same concept (for D-01 different exercise selection)
     exercise_repo_ref.insert(crate::db::models::NewExercise {
-        material_id: 1,
+        material_id,
         title: "Review Exercise B".to_string(),
         description: "Another review exercise".to_string(),
         language: "python".to_string(),
@@ -178,7 +186,7 @@ async fn test_daily_plan_reviews_extra() {
     // Insert exercises for unscheduled concepts (new exercises)
     for i in 1..=5i64 {
         exercise_repo_ref.insert(crate::db::models::NewExercise {
-            material_id: 1,
+            material_id,
             title: format!("New Exercise {}", i),
             description: format!("Description {}", i),
             language: "python".to_string(),
@@ -202,7 +210,7 @@ async fn test_daily_plan_reviews_extra() {
         current_interval: 0,
         last_completed_at: even_older,
         next_review_at: past_time,
-        last_exercise_id: 1,  // Last exercise was id=1, so D-01 should pick id=2
+        last_exercise_id: 1,  // Last exercise was id=1, so D-01 should pick a different one
         status: "active".to_string(),
     }).await.unwrap();
 
@@ -213,12 +221,18 @@ async fn test_daily_plan_reviews_extra() {
         Some("python"),
     ).await.unwrap();
 
-    // Per D-06: total exercises can exceed quota when reviews are present
-    // reviews (1) + new (up to 2) = total should be >= 3 if enough exercises exist
-    // but at minimum: review_count should be 1 (independent of quota)
+    // Per D-06: reviews are extra on top of quota
     assert!(plan.summary.review_count >= 1);
     // new_count should not exceed quota
     assert!(plan.summary.new_count <= 2);
+    // Verify the review exercise is NOT the last_exercise_id (D-01: different exercise)
+    let review_exercises: Vec<_> = plan.exercises.iter().filter(|e| e.is_review).collect();
+    if review_exercises.len() == 1 && review_exercises[0].concept == "reviewed_concept" {
+        // If there are multiple exercises for the concept, it should pick a different one
+        // (last_exercise_id was 1, so it should pick exercise with id != 1)
+        // But since we inserted 2 exercises for the concept, the review should use the other one
+        assert_ne!(review_exercises[0].id, 1, "D-01: review should use a different exercise than last_exercise_id");
+    }
 }
 
 #[tokio::test]
@@ -248,31 +262,15 @@ async fn test_completed_concepts_excluded_from_new() {
     let submission_repo = SqliteSubmissionRepository::new(pool.clone());
 
     // Save a config
-    let config = crate::config::model::UserConfig {
-        preferred_language: "python".to_string(),
-        skill_levels: vec![crate::config::model::LanguageSkillLevel {
-            language: "python".to_string(),
-            skill_level: "beginner".to_string(),
-        }],
-        daily_quotas: vec![crate::config::model::LanguageQuota {
-            language: "python".to_string(),
-            quota: 5,
-        }],
-        ai_model: "test-model".to_string(),
-        ai_model_type: crate::config::model::ModelType::Local,
-        email: None,
-        gmail_client_id: None,
-        gmail_client_secret: None,
-        smtp_host: None,
-        smtp_port: None,
-        smtp_user: None,
-    };
-    config_service.save_config(&config).await.unwrap();
+    config_service.save_config(&make_test_config("python", 5)).await.unwrap();
+
+    // Insert a material for the exercises
+    let material_id = insert_test_material(&pool, "python").await;
 
     // Insert exercises for a concept that will be marked completed (mastered)
     let exercise_repo_ref = SqliteExerciseRepository::new(pool.clone());
     exercise_repo_ref.insert(crate::db::models::NewExercise {
-        material_id: 1,
+        material_id,
         title: "Mastered Exercise".to_string(),
         description: "Should not appear as new".to_string(),
         language: "python".to_string(),
