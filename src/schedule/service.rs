@@ -3,7 +3,7 @@ use tracing::info;
 
 use crate::db::models::{NewReviewSchedule, ReviewSchedule};
 use crate::db::review_schedule_repo::ReviewScheduleRepository;
-use crate::error::Result;
+use crate::error::{AppError, Result};
 
 const INTERVALS: [i64; 4] = [1, 2, 3, 8];
 
@@ -23,11 +23,66 @@ impl<R: ReviewScheduleRepository> ScheduleService<R> {
         score: i32,
         exercise_id: i64,
     ) -> Result<()> {
-        todo!()
+        // Per D-03: 100% score immediately retires concept
+        if score == 100 {
+            if let Some(schedule) = self.schedule_repo
+                .get_by_concept_and_language(concept, language).await
+                .map_err(|e| AppError::Internal(e))?
+            {
+                self.schedule_repo.retire_concept(schedule.id).await
+                    .map_err(|e| AppError::Internal(e))?;
+                info!("Concept '{}' mastered via 100% score shortcut per D-03", concept);
+            }
+            return Ok(());
+        }
+
+        match self.schedule_repo.get_by_concept_and_language(concept, language).await
+            .map_err(|e| AppError::Internal(e))?
+        {
+            None => {
+                // New concept -- create initial schedule entry per D-01, D-02
+                let now = chrono::Utc::now().naive_utc();
+                let next = now + chrono::Duration::days(INTERVALS[0]);
+                self.schedule_repo.insert(NewReviewSchedule {
+                    concept: concept.to_string(),
+                    language: language.to_string(),
+                    current_interval: 0,
+                    last_completed_at: now,
+                    next_review_at: next,
+                    last_exercise_id: exercise_id,
+                    status: "active".to_string(),
+                }).await.map_err(|e| AppError::Internal(e))?;
+                info!("Created review schedule for concept '{}' in {} (last_exercise_id={})", concept, language, exercise_id);
+            }
+            Some(schedule) if schedule.status == "active" => {
+                // Advance to next interval per D-02 (relative to last completion)
+                let next_interval = schedule.current_interval + 1;
+                if next_interval as usize >= INTERVALS.len() {
+                    // All intervals complete -- retire per D-04
+                    self.schedule_repo.retire_concept(schedule.id).await
+                        .map_err(|e| AppError::Internal(e))?;
+                    info!("Concept '{}' mastered after all {} intervals per D-04", concept, INTERVALS.len());
+                } else {
+                    let now = chrono::Utc::now().naive_utc();
+                    let next = now + chrono::Duration::days(INTERVALS[next_interval as usize]);
+                    self.schedule_repo.update_schedule(
+                        schedule.id, next_interval, now, next, exercise_id, "active"
+                    ).await.map_err(|e| AppError::Internal(e))?;
+                    info!("Advanced concept '{}' to interval {} (next review in {} days, last_exercise_id={})", concept, next_interval, INTERVALS[next_interval as usize], exercise_id);
+                }
+            }
+            _ => {
+                // Already completed -- no action needed
+                info!("Concept '{}' already completed, skipping schedule update", concept);
+            }
+        }
+        Ok(())
     }
 
     pub async fn get_due_reviews(&self, language: &str) -> Result<Vec<ReviewSchedule>> {
-        todo!()
+        let today_boundary = Self::today_utc_boundary();
+        self.schedule_repo.get_due_reviews(language, &today_boundary).await
+            .map_err(|e| AppError::Internal(e))
     }
 
     /// Compute "today" boundary in UTC for SQLite queries.

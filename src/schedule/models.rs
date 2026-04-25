@@ -43,3 +43,17 @@ pub struct ScheduleStatusResponse {
     pub completed_concepts: i32,
     pub overdue_reviews: i32,
 }
+
+impl From<crate::db::models::ReviewSchedule> for ReviewScheduleResponse {
+    fn from(s: crate::db::models::ReviewSchedule) -> Self {
+        Self {
+            id: s.id,
+            concept: s.concept,
+            language: s.language,
+            current_interval: s.current_interval,
+            last_completed_at: s.last_completed_at.to_string(),
+            next_review_at: s.next_review_at.to_string(),
+            status: s.status,
+        }
+    }
+}

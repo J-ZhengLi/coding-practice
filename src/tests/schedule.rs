@@ -5,6 +5,7 @@ use crate::db::review_schedule_repo::SqliteReviewScheduleRepository;
 use crate::schedule::ScheduleService;
 use crate::db::models::NewReviewSchedule;
 use chrono::NaiveDateTime;
+use chrono::naive::NaiveDate;
 use std::time::Duration;
 
 async fn setup_test_db() -> (SqlitePool, ScheduleService<SqliteReviewScheduleRepository>) {
@@ -114,8 +115,8 @@ async fn test_due_reviews_returns_active_schedules() {
     let repo = SqliteReviewScheduleRepository::new(pool.clone());
 
     // Insert a schedule with next_review_at in the past (should be due)
-    let past_time: NaiveDateTime = "2020-01-01 00:00:00".parse().unwrap();
-    let even_older: NaiveDateTime = "2019-12-30 00:00:00".parse().unwrap();
+    let past_time = NaiveDate::from_ymd_opt(2020, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap();
+    let even_older = NaiveDate::from_ymd_opt(2019, 12, 30).unwrap().and_hms_opt(0, 0, 0).unwrap();
     repo.insert(NewReviewSchedule {
         concept: "loops".to_string(),
         language: "python".to_string(),
