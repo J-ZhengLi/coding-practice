@@ -5,6 +5,7 @@ import { useExerciseStore } from '../stores/exercise';
 import { useMaterialStore } from '../stores/material';
 import { useProgressStore } from '../stores/progress';
 import { useSubmissionStore } from '../stores/submission';
+import { useScheduleStore } from '../stores/schedule';
 import { useRouter } from 'vue-router';
 import ProgressMetrics from '../components/ProgressMetrics.vue';
 import ExerciseHistoryCard from '../components/ExerciseHistoryCard.vue';
@@ -14,6 +15,7 @@ const exerciseStore = useExerciseStore();
 const materialStore = useMaterialStore();
 const progressStore = useProgressStore();
 const submissionStore = useSubmissionStore();
+const scheduleStore = useScheduleStore();
 const router = useRouter();
 
 const generationError = ref<string | null>(null);
@@ -41,6 +43,9 @@ onMounted(async () => {
 
     // Load progress history after exercises are loaded
     await loadProgressHistory();
+
+    // Per D-05: on-demand daily plan generation
+    await scheduleStore.fetchDailyPlan(configStore.config.preferred_language);
   }
 });
 
@@ -238,28 +243,26 @@ const exerciseHistory = computed(() => {
           </div>
         </div>
 
-        <!-- Your Exercises Section -->
+        <!-- Today's Plan per D-05, D-07, D-08 -->
         <div class="exercises-section">
-          <h3>Your Exercises</h3>
-          <div v-if="exerciseStore.loading" class="loading-text">Loading exercises...</div>
-          <div v-else-if="exerciseCountByLanguage === 0" class="empty-state">
-            No exercises yet. Click "Generate Exercises" to create your first set of exercises.
+          <h3>Today's Plan <span v-if="scheduleStore.dailyPlan" class="plan-summary-label">({{ scheduleStore.newCount }} new + {{ scheduleStore.reviewCount }} reviews)</span></h3>
+          <div v-if="scheduleStore.loading" class="loading-text">Loading today's plan...</div>
+          <div v-else-if="scheduleStore.error" class="error-state">{{ scheduleStore.error }}</div>
+          <div v-else-if="scheduleStore.exercises.length === 0" class="empty-state">
+            No exercises for today. All caught up! Check back later or generate new exercises.
           </div>
           <div v-else class="exercise-list">
             <div
-              v-for="exercise in exerciseStore.exercises"
+              v-for="exercise in scheduleStore.exercises"
               :key="exercise.id"
               class="exercise-card"
             >
               <div class="exercise-card-header">
                 <h4 class="exercise-title">{{ exercise.title }}</h4>
                 <div class="exercise-badges">
-                  <span :class="['badge', languageBadgeColor(exercise.language)]">
-                    {{ languageLabel(exercise.language) }}
-                  </span>
-                  <span :class="['badge', difficultyColor(exercise.difficulty)]">
-                    {{ skillLevelLabel(exercise.difficulty) }}
-                  </span>
+                  <span v-if="exercise.is_review" class="badge bg-amber-100 text-amber-800">Review</span>
+                  <span :class="['badge', languageBadgeColor(exercise.language)]">{{ languageLabel(exercise.language) }}</span>
+                  <span :class="['badge', difficultyColor(exercise.difficulty)]">{{ skillLevelLabel(exercise.difficulty) }}</span>
                 </div>
               </div>
               <p class="exercise-description">{{ truncateDescription(exercise.description) }}</p>
@@ -625,6 +628,19 @@ const exerciseHistory = computed(() => {
   color: #9ca3af;
   text-align: center;
   padding: 2rem 0;
+  font-size: 0.95rem;
+}
+
+.plan-summary-label {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #6b7280;
+}
+
+.error-state {
+  color: #ef4444;
+  text-align: center;
+  padding: 1.5rem 0;
   font-size: 0.95rem;
 }
 
