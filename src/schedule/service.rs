@@ -155,6 +155,7 @@ impl<R: ReviewScheduleRepository> ScheduleService<R> {
                     todo_comment: selected_exercise.todo_comment.clone(),
                     exercise_code: selected_exercise.exercise_code.clone(),
                     concept: selected_exercise.concept.clone(),
+                    source: selected_exercise.source.clone(),
                     is_review: true,
                     review_interval: Some(schedule.current_interval + 1),
                 });
@@ -190,6 +191,7 @@ impl<R: ReviewScheduleRepository> ScheduleService<R> {
                     todo_comment: e.todo_comment.clone(),
                     exercise_code: e.exercise_code.clone(),
                     concept: e.concept.clone(),
+                    source: e.source.clone(),
                     is_review: false,
                     review_interval: None,
                 })

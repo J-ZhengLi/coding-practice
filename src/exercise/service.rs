@@ -82,8 +82,9 @@ impl ExerciseService {
     /// 1. Fetch materials via material_service
     /// 2. Read user config for daily_quota to determine batch size
     /// 3. Call generator.generate_for_materials() for up to batch_size materials
-    /// 4. For each GeneratedExercise, create NewExercise and insert via exercise_repo
-    /// 5. Return newly generated exercises
+    /// 4. If materials are insufficient, fall back to AI-generated exercises from scratch
+    /// 5. For each exercise, create NewExercise and insert via exercise_repo
+    /// 6. Return newly generated exercises
     pub async fn generate_exercises_for_language(
         &self,
         language: &str,
@@ -93,43 +94,99 @@ impl ExerciseService {
         validate_difficulty(difficulty).map_err(AppError::Validation)?;
 
         // Step 1: Fetch materials (D-03: on-demand)
-        let materials = self
+        // If material fetch fails (timeout, rate limit, etc.), log and continue with AI fallback
+        let materials = match self
             .material_service
             .fetch_materials(language, difficulty)
             .await
-            .map_err(|e| AppError::Material(e.to_string()))?;
-
-        if materials.is_empty() {
-            warn!("No materials available for {}/{}", language, difficulty);
-            return Ok(Vec::new());
-        }
+        {
+            Ok(mats) => mats,
+            Err(e) => {
+                warn!("Material fetch failed for {}/{}: {} — falling back to AI generation", language, difficulty, e);
+                Vec::new()
+            }
+        };
 
         // Step 2: Determine batch size from user's daily quota config (D-09)
         let batch_size = self.get_batch_size(language).await;
 
-        // Limit materials to batch_size
-        let materials_batch: Vec<_> = materials.into_iter().take(batch_size as usize).collect();
-
-        // Step 3: Generate exercises from materials
-        let generated = self
-            .generator
-            .generate_for_materials(&materials_batch, language, difficulty, &self.data_dir)
-            .await
-            .map_err(|e| AppError::Ai(e.to_string()))?;
-
-        // Step 4: Store generated exercises in SQLite
         let mut exercises = Vec::new();
-        for (material_id, generated_ex) in generated {
-            let new_exercise = generated_to_new_exercise(material_id, &generated_ex);
-            match self.exercise_repo.insert(new_exercise).await {
-                Ok(exercise) => {
-                    info!("Cached exercise: {} ({})", exercise.title, exercise.language);
-                    exercises.push(exercise);
-                }
-                Err(e) => {
-                    warn!("Failed to insert exercise: {}", e);
+        let materials_empty = materials.is_empty();
+
+        if !materials_empty {
+            // Limit materials to batch_size
+            let materials_batch: Vec<_> = materials.into_iter().take(batch_size as usize).collect();
+
+            // Step 3: Generate exercises from materials
+            let generated = self
+                .generator
+                .generate_for_materials(&materials_batch, language, difficulty, &self.data_dir)
+                .await
+                .map_err(|e| AppError::Ai(e.to_string()))?;
+
+            // Step 4: Store generated exercises in SQLite
+            for (material_id, generated_ex) in generated {
+                let new_exercise = generated_to_new_exercise(material_id, &generated_ex);
+                match self.exercise_repo.insert(new_exercise).await {
+                    Ok(exercise) => {
+                        info!("Cached exercise: {} ({})", exercise.title, exercise.language);
+                        exercises.push(exercise);
+                    }
+                    Err(e) => {
+                        warn!("Failed to insert exercise: {}", e);
+                    }
                 }
             }
+        }
+
+        // Step 5: If scraped materials didn't produce enough exercises, use AI fallback
+        let needed = batch_size as usize;
+        if exercises.len() < needed {
+            let shortfall = needed - exercises.len();
+            info!(
+                "Scraped materials produced {} exercises, need {} — generating {} from AI fallback",
+                exercises.len(),
+                needed,
+                shortfall
+            );
+
+            match self.generator.generate_from_scratch(language, difficulty, shortfall).await {
+                Ok(scratch_exercises) => {
+                    for scratch_ex in scratch_exercises {
+                        let line_count = scratch_ex.original_code.lines().count() as i64;
+                        let new_exercise = NewExercise {
+                            material_id: None,
+                            title: scratch_ex.title,
+                            description: scratch_ex.description,
+                            language: scratch_ex.language,
+                            difficulty: scratch_ex.difficulty,
+                            todo_comment: scratch_ex.todo_comment,
+                            original_code: scratch_ex.original_code,
+                            exercise_code: scratch_ex.exercise_code,
+                            concept: scratch_ex.concept,
+                            start_line: 1,
+                            end_line: line_count,
+                            source: "ai_generated".to_string(),
+                        };
+                        match self.exercise_repo.insert(new_exercise).await {
+                            Ok(exercise) => {
+                                info!("Cached AI-generated exercise: {} ({})", exercise.title, exercise.language);
+                                exercises.push(exercise);
+                            }
+                            Err(e) => {
+                                warn!("Failed to insert AI-generated exercise: {}", e);
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("AI fallback generation failed for {}/{}: {}", language, difficulty, e);
+                }
+            }
+        }
+
+        if exercises.is_empty() && materials_empty {
+            warn!("No materials available and AI fallback failed for {}/{}", language, difficulty);
         }
 
         info!(
@@ -210,7 +267,7 @@ impl ExerciseService {
 /// Convert a GeneratedExercise into a NewExercise for database insertion.
 fn generated_to_new_exercise(material_id: i64, generated_ex: &GeneratedExercise) -> NewExercise {
     NewExercise {
-        material_id,
+        material_id: Some(material_id),
         title: generated_ex.result.title.clone(),
         description: generated_ex.result.description.clone(),
         language: generated_ex.result.language.clone(),
@@ -221,5 +278,6 @@ fn generated_to_new_exercise(material_id: i64, generated_ex: &GeneratedExercise)
         concept: generated_ex.concept.clone(),
         start_line: generated_ex.start_line as i64,
         end_line: generated_ex.end_line as i64,
+        source: "scraped".to_string(),
     }
 }

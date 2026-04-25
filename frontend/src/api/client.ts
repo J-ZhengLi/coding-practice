@@ -3,7 +3,7 @@ import type { AxiosInstance, AxiosError } from 'axios';
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001',
-  timeout: 30000,
+  timeout: 120000,
   headers: {
     'Content-Type': 'application/json',
   },

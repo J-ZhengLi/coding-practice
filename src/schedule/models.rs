@@ -21,6 +21,7 @@ pub struct DailyPlanExercise {
     pub todo_comment: String,
     pub exercise_code: String,
     pub concept: String,
+    pub source: String,
     pub is_review: bool,
     pub review_interval: Option<i32>,
 }

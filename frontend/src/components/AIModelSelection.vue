@@ -4,18 +4,32 @@ import { useConfigStore } from '../stores/config';
 
 interface Props {
   modelValue: string;
-  typeValue: 'local' | 'api';
+  type: string;
 }
 
 interface Emits {
   (e: 'update:modelValue', value: string): void;
-  (e: 'update:typeValue', value: 'local' | 'api'): void;
+  (e: 'update:type', value: string): void;
   (e: 'next'): void;
   (e: 'back'): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+
+// Map model_type to badge label
+const badgeLabel = (type: string) => {
+  if (type === 'ollama_local' || type === 'local') return '(OLLAMA, LOCAL)';
+  if (type === 'ollama_cloud' || type === 'cloud') return '(OLLAMA, CLOUD)';
+  return '(API)';
+};
+
+// Map model_type to CSS class
+const badgeClass = (type: string) => {
+  if (type === 'ollama_local' || type === 'local') return 'ollama_local';
+  if (type === 'ollama_cloud' || type === 'cloud') return 'ollama_cloud';
+  return 'api';
+};
 
 const configStore = useConfigStore();
 const loading = ref(true);
@@ -31,16 +45,35 @@ const apiModels = ref([
 ]);
 
 const allModels = computed(() => {
-  // Local models (from Ollama) first, sorted alphabetically
-  const localModels = [...ollamaModels.value]
-    .filter(m => m.model_type === 'local')
+  // Normalize model_type for display: map 'local' → 'ollama_local', 'api' stays 'api'
+  // This handles both old and new backend responses
+  const normalize = (m: { name: string; model_type: string }) => ({
+    ...m,
+    model_type: m.model_type === 'local' ? 'ollama_local' : m.model_type === 'cloud' ? 'ollama_cloud' : m.model_type,
+  });
+
+  // Strip "(OLLAMA, LOCAL)" / "(OLLAMA, CLOUD)" suffix from display names
+  const cleanName = (m: { name: string; model_type: string }) => ({
+    ...m,
+    name: m.name.replace(/ \(OLLAMA, (?:LOCAL|CLOUD)\)$/, ''),
+  });
+
+  const ollamaLocal = [...ollamaModels.value]
+    .map(normalize)
+    .filter(m => m.model_type === 'ollama_local')
+    .map(cleanName)
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  // API models second, sorted alphabetically
-  const apiModelsList = [...apiModels.value]
+  const ollamaCloud = [...ollamaModels.value]
+    .map(normalize)
+    .filter(m => m.model_type === 'ollama_cloud')
+    .map(cleanName)
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  return [...localModels, ...apiModelsList];
+  const apiList = [...apiModels.value]
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return [...ollamaLocal, ...ollamaCloud, ...apiList];
 });
 
 const selectedModel = computed({
@@ -49,8 +82,8 @@ const selectedModel = computed({
 });
 
 const selectedType = computed({
-  get: () => props.typeValue,
-  set: (value) => emit('update:typeValue', value),
+  get: () => props.type,
+  set: (value) => emit('update:type', value),
 });
 
 const canProceed = computed(() => {
@@ -79,7 +112,7 @@ const goBack = () => {
 
 const selectModel = (model: { name: string; model_type: string }) => {
   selectedModel.value = model.name;
-  selectedType.value = model.model_type as 'local' | 'api';
+  selectedType.value = model.model_type;
 };
 </script>
 
@@ -107,12 +140,15 @@ const selectModel = (model: { name: string; model_type: string }) => {
       >
         <div class="model-header">
           <h3>{{ model.name }}</h3>
-          <span class="model-badge" :class="model.model_type">
-            {{ model.model_type === 'local' ? '(local)' : model.model_type }}
+          <span class="model-badge" :class="badgeClass(model.model_type)">
+            {{ badgeLabel(model.model_type) }}
           </span>
         </div>
-        <p v-if="model.model_type === 'local'" class="model-description">
+        <p v-if="model.model_type === 'ollama_local' || model.model_type === 'local'" class="model-description">
           Running locally on your machine via Ollama. No API costs.
+        </p>
+        <p v-else-if="model.model_type === 'ollama_cloud' || model.model_type === 'cloud'" class="model-description">
+          Cloud-hosted Ollama model. Requires network access.
         </p>
         <p v-else class="model-description">
           API-based model. Requires API key configuration (Phase 2).
@@ -214,9 +250,14 @@ const selectModel = (model: { name: string; model_type: string }) => {
   text-transform: uppercase;
 }
 
-.model-badge.local {
+.model-badge.ollama_local {
   background-color: #d1fae5;
   color: #065f46;
+}
+
+.model-badge.ollama_cloud {
+  background-color: #fef3c7;
+  color: #92400e;
 }
 
 .model-badge.api {

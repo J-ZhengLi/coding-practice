@@ -2,17 +2,22 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import apiClient from '../api/client';
 
-export interface DailyQuota {
+export interface LanguageSkillLevel {
+  language: string;
+  skill_level: string;
+}
+
+export interface LanguageQuota {
   language: string;
   quota: number;
 }
 
 export interface UserConfig {
   preferred_language: string;
-  skill_level: string;
-  daily_quotas: DailyQuota[];
+  skill_levels: LanguageSkillLevel[];
+  daily_quotas: LanguageQuota[];
   ai_model: string;
-  ai_model_type: 'local' | 'api';
+  ai_model_type: string;
 }
 
 export const useConfigStore = defineStore('config', () => {

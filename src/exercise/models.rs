@@ -45,6 +45,7 @@ pub struct ExerciseResponse {
     pub todo_comment: String,
     pub exercise_code: String,
     pub concept: String,
+    pub source: String,
 }
 
 impl From<Exercise> for ExerciseResponse {
@@ -58,6 +59,7 @@ impl From<Exercise> for ExerciseResponse {
             todo_comment: ex.todo_comment,
             exercise_code: ex.exercise_code,
             concept: ex.concept,
+            source: ex.source,
         }
     }
 }

@@ -30,13 +30,13 @@ onMounted(async () => {
 <style scoped>
 .configuration-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 50%, #ffffff 100%);
   padding: 2rem 1rem;
 }
 
 .page-header {
   text-align: center;
-  color: white;
+  color: #1e293b;
   margin-bottom: 3rem;
 }
 
@@ -48,7 +48,7 @@ onMounted(async () => {
 
 .page-header p {
   font-size: 1.25rem;
-  opacity: 0.9;
+  color: #475569;
 }
 
 @media (max-width: 768px) {

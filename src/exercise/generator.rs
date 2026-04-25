@@ -3,12 +3,19 @@ use std::collections::HashSet;
 use tokio::sync::Semaphore;
 use tracing::{debug, info, warn};
 
-use crate::ai::models::{AiError, ExerciseResult, ExerciseSection};
+use crate::ai::models::{AiError, ExerciseResult, ExerciseSection, FromScratchExerciseResult};
 use crate::ai::provider::AiProvider;
 use crate::db::models::Material;
 use crate::exercise::models::{todo_prefix_for_language, Difficulty};
 
 const MAX_CONCURRENT_AI_CALLS: usize = 3;
+
+/// Response from the AI when generating exercises from scratch.
+/// Wraps a list of exercises returned in a single batch call.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FromScratchBatchResponse {
+    pub exercises: Vec<FromScratchExerciseResult>,
+}
 
 /// An exercise result paired with the section it was generated from.
 /// This carries the `concept` field from the analysis section, since
@@ -176,5 +183,53 @@ impl ExerciseGenerator {
         }
 
         Ok(all_results)
+    }
+
+    /// Generate exercises from scratch without source code (fallback when materials are unavailable).
+    ///
+    /// Uses the AI to create complete exercises including original code and
+    /// TODO-marked exercise code from language and difficulty alone.
+    pub async fn generate_from_scratch(
+        &self,
+        language: &str,
+        difficulty: &str,
+        count: usize,
+    ) -> Result<Vec<FromScratchExerciseResult>, AiError> {
+        info!(
+            "Generating {} exercises from scratch for {} at {}",
+            count, language, difficulty
+        );
+
+        let result = self
+            .provider
+            .generate_from_scratch(language, difficulty, count)
+            .await?;
+
+        // Normalize TODO comment prefixes per D-06
+        let prefix = todo_prefix_for_language(language);
+        let normalized: Vec<FromScratchExerciseResult> = result
+            .into_iter()
+            .map(|mut ex| {
+                if !ex.todo_comment.starts_with(prefix) {
+                    ex.todo_comment = format!(
+                        "{} {}",
+                        prefix,
+                        ex.todo_comment
+                            .trim_start_matches("// ")
+                            .trim_start_matches("# ")
+                    );
+                }
+                ex
+            })
+            .collect();
+
+        info!(
+            "Generated {} from-scratch exercises for {} at {}",
+            normalized.len(),
+            language,
+            difficulty
+        );
+
+        Ok(normalized)
     }
 }

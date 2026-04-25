@@ -9,6 +9,7 @@ export interface ExerciseResponse {
   todo_comment: string;
   exercise_code: string;
   concept: string;
+  source: string;
 }
 
 export interface GenerateRequest {

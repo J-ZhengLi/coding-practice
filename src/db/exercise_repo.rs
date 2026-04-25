@@ -30,7 +30,7 @@ impl SqliteExerciseRepository {
 impl ExerciseRepository for SqliteExerciseRepository {
     async fn get_by_id(&self, id: i64) -> Result<Option<Exercise>> {
         sqlx::query_as::<_, Exercise>(
-            "SELECT id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, generated_at FROM exercises WHERE id = ?"
+            "SELECT id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, source, generated_at FROM exercises WHERE id = ?"
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -40,7 +40,7 @@ impl ExerciseRepository for SqliteExerciseRepository {
 
     async fn get_by_language(&self, language: &str) -> Result<Vec<Exercise>> {
         sqlx::query_as::<_, Exercise>(
-            "SELECT id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, generated_at FROM exercises WHERE language = ?"
+            "SELECT id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, source, generated_at FROM exercises WHERE language = ?"
         )
         .bind(language)
         .fetch_all(&self.pool)
@@ -50,7 +50,7 @@ impl ExerciseRepository for SqliteExerciseRepository {
 
     async fn get_by_language_and_difficulty(&self, language: &str, difficulty: &str) -> Result<Vec<Exercise>> {
         sqlx::query_as::<_, Exercise>(
-            "SELECT id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, generated_at FROM exercises WHERE language = ? AND difficulty = ?"
+            "SELECT id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, source, generated_at FROM exercises WHERE language = ? AND difficulty = ?"
         )
         .bind(language)
         .bind(difficulty)
@@ -61,7 +61,7 @@ impl ExerciseRepository for SqliteExerciseRepository {
 
     async fn get_by_material_id(&self, material_id: i64) -> Result<Vec<Exercise>> {
         sqlx::query_as::<_, Exercise>(
-            "SELECT id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, generated_at FROM exercises WHERE material_id = ?"
+            "SELECT id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, source, generated_at FROM exercises WHERE material_id = ?"
         )
         .bind(material_id)
         .fetch_all(&self.pool)
@@ -71,7 +71,7 @@ impl ExerciseRepository for SqliteExerciseRepository {
 
     async fn insert(&self, exercise: NewExercise) -> Result<Exercise> {
         sqlx::query_as::<_, Exercise>(
-            "INSERT INTO exercises (material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, generated_at"
+            "INSERT INTO exercises (material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, source, generated_at"
         )
         .bind(exercise.material_id)
         .bind(exercise.title)
@@ -84,6 +84,7 @@ impl ExerciseRepository for SqliteExerciseRepository {
         .bind(exercise.concept)
         .bind(exercise.start_line)
         .bind(exercise.end_line)
+        .bind(&exercise.source)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to insert exercise: {}", e))
@@ -100,7 +101,7 @@ impl ExerciseRepository for SqliteExerciseRepository {
 
     async fn get_all(&self) -> Result<Vec<Exercise>> {
         sqlx::query_as::<_, Exercise>(
-            "SELECT id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, generated_at FROM exercises"
+            "SELECT id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, source, generated_at FROM exercises"
         )
         .fetch_all(&self.pool)
         .await
@@ -121,7 +122,7 @@ impl ExerciseRepository for SqliteExerciseRepository {
 
     async fn get_by_concept(&self, concept: &str, language: &str) -> Result<Vec<Exercise>> {
         sqlx::query_as::<_, Exercise>(
-            "SELECT id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, generated_at FROM exercises WHERE concept = ? AND language = ?"
+            "SELECT id, material_id, title, description, language, difficulty, todo_comment, original_code, exercise_code, concept, start_line, end_line, source, generated_at FROM exercises WHERE concept = ? AND language = ?"
         )
         .bind(concept)
         .bind(language)

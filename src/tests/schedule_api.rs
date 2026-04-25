@@ -112,7 +112,7 @@ async fn test_get_daily_plan_respects_quotas() {
     let exercise_repo_ref = SqliteExerciseRepository::new(pool.clone());
     for i in 1..=5i64 {
         exercise_repo_ref.insert(crate::db::models::NewExercise {
-            material_id,
+            material_id: Some(material_id),
             title: format!("Exercise {}", i),
             description: format!("Description {}", i),
             language: "python".to_string(),
@@ -123,6 +123,7 @@ async fn test_get_daily_plan_respects_quotas() {
             concept: format!("concept_{}", i),
             start_line: 1,
             end_line: 10,
+            source: "scraped".to_string(),
         }).await.unwrap();
     }
 
@@ -157,7 +158,7 @@ async fn test_daily_plan_reviews_extra() {
     // Insert exercises for a concept that will have a due review
     let exercise_repo_ref = SqliteExerciseRepository::new(pool.clone());
     exercise_repo_ref.insert(crate::db::models::NewExercise {
-        material_id,
+        material_id: Some(material_id),
         title: "Review Exercise A".to_string(),
         description: "A review exercise".to_string(),
         language: "python".to_string(),
@@ -168,10 +169,11 @@ async fn test_daily_plan_reviews_extra() {
         concept: "reviewed_concept".to_string(),
         start_line: 1,
         end_line: 10,
+        source: "scraped".to_string(),
     }).await.unwrap();
     // Insert a second exercise for the same concept (for D-01 different exercise selection)
     exercise_repo_ref.insert(crate::db::models::NewExercise {
-        material_id,
+        material_id: Some(material_id),
         title: "Review Exercise B".to_string(),
         description: "Another review exercise".to_string(),
         language: "python".to_string(),
@@ -182,11 +184,12 @@ async fn test_daily_plan_reviews_extra() {
         concept: "reviewed_concept".to_string(),
         start_line: 1,
         end_line: 10,
+        source: "scraped".to_string(),
     }).await.unwrap();
     // Insert exercises for unscheduled concepts (new exercises)
     for i in 1..=5i64 {
         exercise_repo_ref.insert(crate::db::models::NewExercise {
-            material_id,
+            material_id: Some(material_id),
             title: format!("New Exercise {}", i),
             description: format!("Description {}", i),
             language: "python".to_string(),
@@ -197,6 +200,7 @@ async fn test_daily_plan_reviews_extra() {
             concept: format!("new_concept_{}", i),
             start_line: 1,
             end_line: 10,
+            source: "scraped".to_string(),
         }).await.unwrap();
     }
 
@@ -270,7 +274,7 @@ async fn test_completed_concepts_excluded_from_new() {
     // Insert exercises for a concept that will be marked completed (mastered)
     let exercise_repo_ref = SqliteExerciseRepository::new(pool.clone());
     exercise_repo_ref.insert(crate::db::models::NewExercise {
-        material_id,
+        material_id: Some(material_id),
         title: "Mastered Exercise".to_string(),
         description: "Should not appear as new".to_string(),
         language: "python".to_string(),
@@ -281,6 +285,7 @@ async fn test_completed_concepts_excluded_from_new() {
         concept: "mastered_concept".to_string(),
         start_line: 1,
         end_line: 10,
+        source: "scraped".to_string(),
     }).await.unwrap();
 
     // Insert a completed schedule for "mastered_concept"

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::models::{AiError, AnalysisResult, ExerciseResult, ExerciseSection, EvaluationResult};
+use super::models::{AiError, AnalysisResult, ExerciseResult, ExerciseSection, EvaluationResult, FromScratchExerciseResult};
 use super::provider::AiProvider;
 use super::prompts;
 
@@ -251,6 +251,37 @@ impl AiProvider for AnthropicProvider {
 
         serde_json::from_str::<EvaluationResult>(&content)
             .map_err(|e| AiError::InvalidResponse(format!("Failed to parse evaluation result: {}", e)))
+    }
+
+    async fn generate_from_scratch(
+        &self,
+        language: &str,
+        difficulty: &str,
+        count: usize,
+    ) -> Result<Vec<FromScratchExerciseResult>, AiError> {
+        let system_prompt = prompts::format_from_scratch_system_prompt(language, difficulty, count);
+        let user_prompt = prompts::format_from_scratch_user_prompt(language, difficulty, count);
+
+        let content = retry_anthropic_request(
+            &self.client,
+            &self.api_key,
+            &self.model,
+            &system_prompt,
+            &user_prompt,
+            0.7,
+            8192,
+        )
+        .await?;
+
+        #[derive(serde::Deserialize)]
+        struct BatchResponse {
+            exercises: Vec<FromScratchExerciseResult>,
+        }
+
+        let batch: BatchResponse = serde_json::from_str(&content)
+            .map_err(|e| AiError::InvalidResponse(format!("Failed to parse from-scratch exercises: {}", e)))?;
+
+        Ok(batch.exercises)
     }
 }
 

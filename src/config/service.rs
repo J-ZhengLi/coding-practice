@@ -46,7 +46,7 @@ impl<R: ConfigRepository> ConfigService<R> {
                 skill_level: global_level.clone(),
             }).collect()
         } else {
-            // New: per-language skill levels
+            // New: per-language skill levels — only include languages that have stored values
             languages.iter().filter_map(|lang| {
                 get_value(&format!("skill_level_{}", lang)).ok().map(|level| {
                     LanguageSkillLevel {
@@ -57,28 +57,42 @@ impl<R: ConfigRepository> ConfigService<R> {
             }).collect()
         };
 
-        let daily_quotas = vec![
-            LanguageQuota {
-                language: "python".to_string(),
-                quota: get_value("quota_python")?.parse()
-                    .map_err(|e| AppError::Validation(format!("Invalid quota for python: {}", e)))?,
-            },
-            LanguageQuota {
-                language: "rust".to_string(),
-                quota: get_value("quota_rust")?.parse()
-                    .map_err(|e| AppError::Validation(format!("Invalid quota for rust: {}", e)))?,
-            },
-            LanguageQuota {
-                language: "go".to_string(),
-                quota: get_value("quota_go")?.parse()
-                    .map_err(|e| AppError::Validation(format!("Invalid quota for go: {}", e)))?,
-            },
-            LanguageQuota {
-                language: "cpp".to_string(),
-                quota: get_value("quota_cpp")?.parse()
-                    .map_err(|e| AppError::Validation(format!("Invalid quota for cpp: {}", e)))?,
-            },
-        ];
+        // Load per-language daily quotas dynamically from quota_{language} keys.
+        // Only include languages that have stored quota values, so we don't fail
+        // when the user didn't select all four languages during configuration.
+        let get_optional_value = |key: &str| -> Option<String> {
+            configs
+                .iter()
+                .find(|c| c.key == key)
+                .map(|c| c.value.clone())
+        };
+
+        let daily_quotas: Vec<LanguageQuota> = languages.iter()
+            .filter_map(|lang| {
+                get_optional_value(&format!("quota_{}", lang)).map(|quota_str| {
+                    let quota: u32 = quota_str.parse().ok()?;
+                    Some(LanguageQuota {
+                        language: lang.to_string(),
+                        quota,
+                    })
+                })
+            })
+            .flatten()
+            .collect();
+
+        // If no per-language quotas found, fall back to legacy hard-coded approach
+        // for backward compatibility with existing databases
+        let daily_quotas = if daily_quotas.is_empty() {
+            vec![
+                LanguageQuota {
+                    language: "python".to_string(),
+                    quota: get_value("quota_python")?.parse()
+                        .map_err(|e| AppError::Validation(format!("Invalid quota for python: {}", e)))?,
+                },
+            ]
+        } else {
+            daily_quotas
+        };
 
         let get_optional = |key: &str| -> Option<String> {
             configs

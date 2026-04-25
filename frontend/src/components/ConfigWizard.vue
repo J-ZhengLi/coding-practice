@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useConfigStore, type UserConfig } from '../stores/config';
+import { useConfigStore, type UserConfig, type LanguageSkillLevel, type LanguageQuota } from '../stores/config';
 import LanguageSelection from './LanguageSelection.vue';
-import SkillLevelSelection from './SkillLevelSelection.vue';
-import DailyQuotaConfig from './DailyQuotaConfig.vue';
+import LanguageConfigStep from './LanguageConfigStep.vue';
 import AIModelSelection from './AIModelSelection.vue';
 import ReviewAndConfirm from './ReviewAndConfirm.vue';
 
@@ -12,22 +11,21 @@ const router = useRouter();
 const configStore = useConfigStore();
 
 const currentStep = ref(1);
-const totalSteps = 5;
+const totalSteps = 4;
 const isSaving = ref(false);
 const saveError = ref<string | null>(null);
 
-// Form state - no defaults (per D-06)
+interface LanguageConfig {
+  language: string;
+  skill_level: string;
+  quota: number;
+}
+
 const formData = ref({
-  preferredLanguage: '',
-  skillLevel: '',
-  dailyQuotas: {
-    python: 0,
-    rust: 0,
-    go: 0,
-    cpp: 0,
-  },
+  selectedLanguages: [] as string[],
+  languageConfigs: [] as LanguageConfig[],
   aiModel: '',
-  aiModelType: 'local' as 'local' | 'api',
+  aiModelType: '' as string,
 });
 
 const nextStep = () => {
@@ -47,26 +45,32 @@ const finishWizard = async () => {
   saveError.value = null;
 
   try {
+    const skillLevels: LanguageSkillLevel[] = formData.value.languageConfigs.map(c => ({
+      language: c.language,
+      skill_level: c.skill_level,
+    }));
+
+    const dailyQuotas: LanguageQuota[] = formData.value.languageConfigs.map(c => ({
+      language: c.language,
+      quota: c.quota,
+    }));
+
+    // Map display model types to backend API types: ollama_local/ollama_cloud → local, api stays api
+    const apiModelType = formData.value.aiModelType.startsWith('ollama_') ? 'local' : formData.value.aiModelType;
+
     const config: UserConfig = {
-      preferred_language: formData.value.preferredLanguage,
-      skill_level: formData.value.skillLevel,
-      daily_quotas: [
-        { language: 'python', quota: formData.value.dailyQuotas.python },
-        { language: 'rust', quota: formData.value.dailyQuotas.rust },
-        { language: 'go', quota: formData.value.dailyQuotas.go },
-        { language: 'cpp', quota: formData.value.dailyQuotas.cpp },
-      ],
+      preferred_language: formData.value.selectedLanguages[0] || '',
+      skill_levels: skillLevels,
+      daily_quotas: dailyQuotas,
       ai_model: formData.value.aiModel,
-      ai_model_type: formData.value.aiModelType,
+      ai_model_type: apiModelType,
     };
 
     await configStore.saveConfig(config);
 
-    // Update store state
     configStore.isConfigured = true;
     configStore.config = config;
 
-    // Redirect to dashboard
     router.push({ name: 'dashboard' });
   } catch (error: any) {
     saveError.value = error.response?.data?.detail || error.message || 'Failed to save configuration';
@@ -97,26 +101,20 @@ const finishWizard = async () => {
 
     <LanguageSelection
       v-if="currentStep === 1"
-      v-model="formData.preferredLanguage"
+      v-model="formData.selectedLanguages"
       @next="nextStep"
     />
 
-    <SkillLevelSelection
+    <LanguageConfigStep
       v-if="currentStep === 2"
-      v-model="formData.skillLevel"
-      @next="nextStep"
-      @back="prevStep"
-    />
-
-    <DailyQuotaConfig
-      v-if="currentStep === 3"
-      v-model="formData.dailyQuotas"
+      :selected-languages="formData.selectedLanguages"
+      v-model="formData.languageConfigs"
       @next="nextStep"
       @back="prevStep"
     />
 
     <AIModelSelection
-      v-if="currentStep === 4"
+      v-if="currentStep === 3"
       v-model="formData.aiModel"
       v-model:type="formData.aiModelType"
       @next="nextStep"
@@ -124,7 +122,7 @@ const finishWizard = async () => {
     />
 
     <ReviewAndConfirm
-      v-if="currentStep === 5"
+      v-if="currentStep === 4"
       :config="formData"
       @finish="finishWizard"
       @back="prevStep"

@@ -28,6 +28,20 @@ pub struct ExerciseResult {
     pub exercise_code: String,     // Code with TODO replacing the section
 }
 
+/// Result of generating an exercise from scratch (no source code).
+/// Used as a fallback when scraped materials are unavailable.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FromScratchExerciseResult {
+    pub title: String,
+    pub description: String,
+    pub todo_comment: String,
+    pub difficulty: String,
+    pub language: String,
+    pub concept: String,
+    pub original_code: String,
+    pub exercise_code: String,
+}
+
 /// Errors that can occur during AI provider operations.
 #[derive(Debug, Clone)]
 pub enum AiError {

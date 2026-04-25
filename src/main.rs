@@ -8,6 +8,7 @@ mod exercise;
 mod submission;
 mod scoring;
 mod schedule;
+mod logging;
 
 use axum::{
     routing::{get, post, delete},
@@ -31,6 +32,9 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Initialize logging first — guard must live for the entire program
+    let _logging_guard = logging::init();
+
     let cli = Cli::parse();
     let port = cli.port;
 
@@ -126,8 +130,8 @@ async fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::from(([127, 0,  0, 1], port));
     let listener = TcpListener::bind(addr).await?;
 
-    println!("Server listening on http://{}", addr);
-    println!("Database: {:?}", db::get_database_path());
+    tracing::info!("Server listening on http://{}", addr);
+    tracing::info!("Database: {:?}", db::get_database_path());
 
     axum::serve(listener, app).await?;
 

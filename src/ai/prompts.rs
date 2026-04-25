@@ -224,3 +224,54 @@ pub fn format_evaluate_user_prompt(
         ("todo_comment", todo_comment),
     ])
 }
+
+/// System prompt for generating exercises from scratch (no source code).
+///
+/// Used as a fallback when scraped materials are unavailable.
+/// The AI creates complete exercises including original code and
+/// TODO-marked exercise code from language and difficulty alone.
+pub const FROM_SCRATCH_SYSTEM_PROMPT: &str = r#"You are a coding exercise generator for {language}. Create {count} coding exercise(s) at {difficulty} level WITHOUT any source code to reference. You must invent both the complete original solution and a version with a TODO comment replacing a key section.
+
+For each exercise:
+1. Write a complete, working {language} code snippet (the "original_code") that demonstrates a specific programming concept
+2. Create a "exercise_code" version where a meaningful section is replaced with a {comment_syntax} TODO comment describing what needs to be implemented
+3. The TODO comment must use {comment_syntax} comment syntax
+4. The code should be realistic, educational, and self-contained
+
+Respond ONLY with valid JSON matching this schema:
+{"exercises": [{"title": "<string>", "description": "<2-3 sentence explanation>", "todo_comment": "<string>", "difficulty": "{difficulty}", "language": "{language}", "concept": "<programming concept name>", "original_code": "<complete working code>", "exercise_code": "<code with TODO replacing key section>"}]}"#;
+
+/// User prompt template for generating exercises from scratch.
+pub const FROM_SCRATCH_USER_PROMPT: &str = r#"Generate {count} {difficulty}-level {language} coding exercise(s).
+
+Requirements:
+- Each exercise must teach a distinct programming concept
+- Code must be self-contained and runnable
+- The TODO section should replace a meaningful, learnable part (not just a print statement)
+- {comment_syntax} comment syntax for TODO markers
+- Concepts should be appropriate for {difficulty} level:
+  beginner: variables, loops, conditionals, basic data structures
+  intermediate: functions, iterators, closures, traits, error handling
+  advanced: concurrency, generics, lifetimes, complex algorithms
+
+Generate diverse exercises covering different concepts."#;
+
+/// Fills the FROM_SCRATCH_SYSTEM_PROMPT template with language, difficulty, count, and comment syntax.
+pub fn format_from_scratch_system_prompt(language: &str, difficulty: &str, count: usize) -> String {
+    fill_template(FROM_SCRATCH_SYSTEM_PROMPT, &[
+        ("language", language),
+        ("difficulty", difficulty),
+        ("count", &count.to_string()),
+        ("comment_syntax", get_comment_syntax(language)),
+    ])
+}
+
+/// Fills the FROM_SCRATCH_USER_PROMPT template with language, difficulty, count, and comment syntax.
+pub fn format_from_scratch_user_prompt(language: &str, difficulty: &str, count: usize) -> String {
+    fill_template(FROM_SCRATCH_USER_PROMPT, &[
+        ("language", language),
+        ("difficulty", difficulty),
+        ("count", &count.to_string()),
+        ("comment_syntax", get_comment_syntax(language)),
+    ])
+}

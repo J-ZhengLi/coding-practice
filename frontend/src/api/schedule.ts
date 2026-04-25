@@ -7,6 +7,7 @@ export interface DailyPlanExercise {
   language: string;
   difficulty: string;
   concept: string;
+  source: string;
   is_review: boolean;
   review_interval?: number;
   todo_comment: string;

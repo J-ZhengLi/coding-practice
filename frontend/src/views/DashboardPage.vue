@@ -19,6 +19,7 @@ const scheduleStore = useScheduleStore();
 const router = useRouter();
 
 const generationError = ref<string | null>(null);
+const generationWarning = ref<string | null>(null);
 
 /** Look up the skill level for a given language from the skill_levels array. */
 const getSkillLevelForLanguage = (language: string): string | undefined => {
@@ -121,6 +122,7 @@ const handleGenerateExercises = async () => {
   if (!configStore.config) return;
 
   generationError.value = null;
+  generationWarning.value = null;
   const language = configStore.config.preferred_language;
   const difficulty = preferredDifficulty.value;
 
@@ -133,14 +135,21 @@ const handleGenerateExercises = async () => {
   if (!result && exerciseStore.error) {
     generationError.value = exerciseStore.error;
   } else if (result && result.generated_count === 0) {
-    generationError.value = 'No exercises could be generated. Check that materials are available and the AI provider is running.';
+    generationError.value = 'No exercises could be generated. Please verify your AI provider is running and try again.';
   } else if (result) {
+    const aiCount = result.exercises.filter(e => e.source === 'ai_generated').length;
+    if (aiCount > 0 && aiCount < result.generated_count) {
+      generationWarning.value = `Generated ${result.generated_count} exercises (${aiCount} AI-generated as fallback — source materials unavailable)`;
+    } else if (aiCount === result.generated_count && result.generated_count > 0) {
+      generationWarning.value = `All ${result.generated_count} exercises are AI-generated (source materials unavailable)`;
+    }
     await scheduleStore.fetchDailyPlan(configStore.config.preferred_language);
   }
 };
 
 const dismissError = () => {
   generationError.value = null;
+  generationWarning.value = null;
   exerciseStore.error = null;
   materialStore.error = null;
 };
@@ -210,6 +219,12 @@ const exerciseHistory = computed(() => {
       <div v-if="generationError || exerciseStore.error || materialStore.error" class="error-alert">
         <span>{{ generationError || exerciseStore.error || materialStore.error }}</span>
         <button @click="dismissError" class="dismiss-btn">&times;</button>
+      </div>
+
+      <!-- Warning Alert (non-blocking) -->
+      <div v-if="generationWarning" class="warning-alert">
+        <span>{{ generationWarning }}</span>
+        <button @click="generationWarning = null" class="dismiss-btn">&times;</button>
       </div>
 
       <div v-if="configStore.config" class="config-summary">
@@ -294,6 +309,7 @@ const exerciseHistory = computed(() => {
                 <h4 class="exercise-title">{{ exercise.title }}</h4>
                 <div class="exercise-badges">
                   <span v-if="exercise.is_review" class="badge bg-amber-100 text-amber-800">Review</span>
+                  <span v-if="exercise.source === 'ai_generated'" class="badge bg-purple-100 text-purple-800">AI Generated</span>
                   <span :class="['badge', languageBadgeColor(exercise.language)]">{{ languageLabel(exercise.language) }}</span>
                   <span :class="['badge', difficultyColor(exercise.difficulty)]">{{ skillLevelLabel(exercise.difficulty) }}</span>
                 </div>
@@ -497,6 +513,19 @@ const exerciseHistory = computed(() => {
   justify-content: space-between;
   align-items: center;
   color: #991b1b;
+  font-size: 0.95rem;
+}
+
+.warning-alert {
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 0.75rem;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #92400e;
   font-size: 0.95rem;
 }
 

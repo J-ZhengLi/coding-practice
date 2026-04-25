@@ -8,6 +8,7 @@ pub mod exercise;
 pub mod submission;
 pub mod scoring;
 pub mod schedule;
+pub mod logging;
 
 #[cfg(test)]
 mod tests;

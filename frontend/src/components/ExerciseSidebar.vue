@@ -59,6 +59,7 @@ const languageBadgeColor = (lang: string): string => {
           <span class="exercise-item-title">{{ exercise.title }}</span>
           <div class="exercise-item-badges">
             <span v-if="scheduleStore.isReviewExercise(exercise.id)" class="badge bg-amber-100 text-amber-800">Review</span>
+            <span v-if="exercise.source === 'ai_generated'" class="badge bg-purple-100 text-purple-800">AI Generated</span>
             <span :class="['badge', languageBadgeColor(exercise.language)]">{{ languageLabel(exercise.language) }}</span>
             <span :class="['badge', difficultyColor(exercise.difficulty)]">{{ exercise.difficulty }}</span>
           </div>

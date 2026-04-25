@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::models::{AiError, AnalysisResult, ExerciseResult, ExerciseSection, EvaluationResult};
+use super::models::{AiError, AnalysisResult, ExerciseResult, ExerciseSection, EvaluationResult, FromScratchExerciseResult};
 
 /// Core trait for AI provider abstraction.
 ///
@@ -47,4 +47,16 @@ pub trait AiProvider: Send + Sync {
         user_code: &str,
         todo_comment: &str,
     ) -> Result<EvaluationResult, AiError>;
+
+    /// Generate exercises from scratch (no source code).
+    ///
+    /// Used as a fallback when scraped materials are unavailable.
+    /// The AI creates complete exercises including original code and
+    /// TODO-marked exercise code from language and difficulty alone.
+    async fn generate_from_scratch(
+        &self,
+        language: &str,
+        difficulty: &str,
+        count: usize,
+    ) -> Result<Vec<FromScratchExerciseResult>, AiError>;
 }

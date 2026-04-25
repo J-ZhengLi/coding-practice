@@ -32,7 +32,7 @@ pub struct NewMaterial {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct Exercise {
     pub id: i64,
-    pub material_id: i64,
+    pub material_id: Option<i64>,
     pub title: String,
     pub description: String,
     pub language: String,
@@ -43,12 +43,13 @@ pub struct Exercise {
     pub concept: String,
     pub start_line: i64,
     pub end_line: i64,
+    pub source: String,
     pub generated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct NewExercise {
-    pub material_id: i64,
+    pub material_id: Option<i64>,
     pub title: String,
     pub description: String,
     pub language: String,
@@ -59,6 +60,7 @@ pub struct NewExercise {
     pub concept: String,
     pub start_line: i64,
     pub end_line: i64,
+    pub source: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]

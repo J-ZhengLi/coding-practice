@@ -1,16 +1,16 @@
 <script setup lang="ts">
+interface LanguageConfig {
+  language: string;
+  skill_level: string;
+  quota: number;
+}
+
 interface Props {
   config: {
-    preferredLanguage: string;
-    skillLevel: string;
-    dailyQuotas: {
-      python: number;
-      rust: number;
-      go: number;
-      cpp: number;
-    };
+    selectedLanguages: string[];
+    languageConfigs: LanguageConfig[];
     aiModel: string;
-    aiModelType: 'local' | 'api';
+    aiModelType: string;
   };
 }
 
@@ -21,14 +21,6 @@ interface Emits {
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
-
-const finish = () => {
-  emit('finish');
-};
-
-const goBack = () => {
-  emit('back');
-};
 
 const skillLevelLabels: Record<string, string> = {
   beginner: 'Beginner',
@@ -42,6 +34,26 @@ const languageLabels: Record<string, string> = {
   go: 'Go',
   cpp: 'C++',
 };
+
+const badgeLabel = (type: string) => {
+  if (type === 'ollama_local' || type === 'local') return '(OLLAMA, LOCAL)';
+  if (type === 'ollama_cloud' || type === 'cloud') return '(OLLAMA, CLOUD)';
+  return '(API)';
+};
+
+const badgeClass = (type: string) => {
+  if (type === 'ollama_local' || type === 'local') return 'ollama_local';
+  if (type === 'ollama_cloud' || type === 'cloud') return 'ollama_cloud';
+  return 'api';
+};
+
+const finish = () => {
+  emit('finish');
+};
+
+const goBack = () => {
+  emit('back');
+};
 </script>
 
 <template>
@@ -51,20 +63,21 @@ const languageLabels: Record<string, string> = {
 
     <div class="review-card">
       <div class="review-section">
-        <h3>Preferred Language</h3>
-        <p>{{ languageLabels[config.preferredLanguage] || config.preferredLanguage }}</p>
-      </div>
-
-      <div class="review-section">
-        <h3>Skill Level</h3>
-        <p>{{ skillLevelLabels[config.skillLevel] || config.skillLevel }}</p>
-      </div>
-
-      <div class="review-section">
-        <h3>Daily Exercise Quotas</h3>
+        <h3>Languages</h3>
         <ul>
-          <li v-for="(quota, lang) in config.dailyQuotas" :key="lang">
-            <strong>{{ languageLabels[lang] || lang }}:</strong> {{ quota }} exercises/day
+          <li v-for="lang in config.selectedLanguages" :key="lang">
+            {{ languageLabels[lang] || lang }}
+          </li>
+        </ul>
+      </div>
+
+      <div class="review-section">
+        <h3>Skill Levels &amp; Daily Quotas</h3>
+        <ul>
+          <li v-for="lc in config.languageConfigs" :key="lc.language">
+            <strong>{{ languageLabels[lc.language] || lc.language }}:</strong>
+            {{ skillLevelLabels[lc.skill_level] || lc.skill_level }},
+            {{ lc.quota }} exercises/day
           </li>
         </ul>
       </div>
@@ -73,8 +86,8 @@ const languageLabels: Record<string, string> = {
         <h3>AI Model</h3>
         <p>
           <span class="model-name">{{ config.aiModel }}</span>
-          <span class="model-badge" :class="config.aiModelType">
-            {{ config.aiModelType }}
+          <span class="model-badge" :class="badgeClass(config.aiModelType)">
+            {{ badgeLabel(config.aiModelType) }}
           </span>
         </p>
       </div>
@@ -164,9 +177,14 @@ const languageLabels: Record<string, string> = {
   text-transform: uppercase;
 }
 
-.model-badge.local {
+.model-badge.ollama_local {
   background-color: #d1fae5;
   color: #065f46;
+}
+
+.model-badge.ollama_cloud {
+  background-color: #fef3c7;
+  color: #92400e;
 }
 
 .model-badge.api {
