@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, NaiveDateTime};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct Config {
@@ -92,4 +92,27 @@ pub struct DailyScore {
     pub date: String,
     pub avg_score: f64,
     pub count: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct ReviewSchedule {
+    pub id: i64,
+    pub concept: String,
+    pub language: String,
+    pub current_interval: i32,
+    pub last_completed_at: NaiveDateTime,
+    pub next_review_at: NaiveDateTime,
+    pub last_exercise_id: i64,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct NewReviewSchedule {
+    pub concept: String,
+    pub language: String,
+    pub current_interval: i32,
+    pub last_completed_at: NaiveDateTime,
+    pub next_review_at: NaiveDateTime,
+    pub last_exercise_id: i64,
+    pub status: String,
 }

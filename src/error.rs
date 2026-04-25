@@ -30,6 +30,9 @@ pub enum AppError {
     #[error("Validation error: {0}")]
     Validation(String),
 
+    #[error("Schedule error: {0}")]
+    Schedule(String),
+
     #[error("Internal error: {0}")]
     Internal(#[from] anyhow::Error),
 }
@@ -54,6 +57,7 @@ impl axum::response::IntoResponse for AppError {
             AppError::Evaluation(msg) => (axum::http::StatusCode::BAD_GATEWAY, msg.clone()),
             AppError::NotConfigured => (axum::http::StatusCode::NOT_FOUND, "Configuration not found".to_string()),
             AppError::Validation(msg) => (axum::http::StatusCode::BAD_REQUEST, msg.clone()),
+            AppError::Schedule(msg) => (axum::http::StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Internal(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()),
         };
 
