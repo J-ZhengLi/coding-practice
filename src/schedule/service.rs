@@ -23,6 +23,20 @@ impl<R: ReviewScheduleRepository> ScheduleService<R> {
         score: i32,
         exercise_id: i64,
     ) -> Result<()> {
+        // Input validation per T-04-01
+        if concept.trim().is_empty() {
+            return Err(AppError::Validation("Concept cannot be empty".to_string()));
+        }
+        if language.trim().is_empty() {
+            return Err(AppError::Validation("Language cannot be empty".to_string()));
+        }
+        if score < 0 || score > 100 {
+            return Err(AppError::Validation(format!("Score must be between 0 and 100, got {}", score)));
+        }
+        if exercise_id <= 0 {
+            return Err(AppError::Validation(format!("Exercise ID must be positive, got {}", exercise_id)));
+        }
+
         // Per D-03: 100% score immediately retires concept
         if score == 100 {
             if let Some(schedule) = self.schedule_repo

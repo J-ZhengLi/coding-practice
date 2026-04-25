@@ -179,3 +179,29 @@ async fn test_last_exercise_id_stored_and_updated() {
     let s = repo.get_by_concept_and_language("loops", "python").await.unwrap().unwrap();
     assert_eq!(s.last_exercise_id, 20);
 }
+
+#[tokio::test]
+async fn test_input_validation_rejects_invalid_inputs() {
+    // Per T-04-01: validate score range, non-empty concept/language, positive exercise_id
+    let (_pool, service) = setup_test_db().await;
+
+    // Empty concept
+    let result = service.on_submission_completed("", "python", 80, 1).await;
+    assert!(result.is_err());
+
+    // Empty language
+    let result = service.on_submission_completed("sorting", "", 80, 1).await;
+    assert!(result.is_err());
+
+    // Score out of range (negative)
+    let result = service.on_submission_completed("sorting", "python", -1, 1).await;
+    assert!(result.is_err());
+
+    // Score out of range (> 100)
+    let result = service.on_submission_completed("sorting", "python", 101, 1).await;
+    assert!(result.is_err());
+
+    // Non-positive exercise_id
+    let result = service.on_submission_completed("sorting", "python", 80, 0).await;
+    assert!(result.is_err());
+}
