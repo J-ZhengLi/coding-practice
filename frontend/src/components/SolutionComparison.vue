@@ -81,8 +81,7 @@ watch(
 
 <style scoped>
 .solution-comparison {
-  min-height: 400px;
-  max-height: 600px;
+  height: 500px;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
   overflow: hidden;
