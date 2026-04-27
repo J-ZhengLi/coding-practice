@@ -1,4 +1,5 @@
 pub mod config;
+pub mod gmail;
 pub mod ollama;
 pub mod materials;
 pub mod exercises;
@@ -46,3 +47,4 @@ pub use submissions::{
 };
 pub use schedule::{get_daily_plan_handler, get_schedule_status_handler};
 pub use reminder::{test_reminder_handler, get_reminder_status_handler};
+pub use gmail::{connect_gmail_handler, poll_gmail_token_handler};

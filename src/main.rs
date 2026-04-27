@@ -129,6 +129,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/schedule/status", get(api::get_schedule_status_handler))
         .route("/api/reminders/test", post(api::test_reminder_handler))
         .route("/api/reminders/status", get(api::get_reminder_status_handler))
+        .route("/api/gmail/connect", post(api::connect_gmail_handler))
+        .route("/api/gmail/token", post(api::poll_gmail_token_handler))
         .route("/health", get(health_check))
         .layer(cors)
         .with_state((config_service.clone(), ollama_service.clone(), material_service.clone(), exercise_service.clone(), submission_service.clone(), schedule_service.clone(), reminder_service.clone()));
