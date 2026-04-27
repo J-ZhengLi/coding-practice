@@ -18,6 +18,17 @@ export interface UserConfig {
   daily_quotas: LanguageQuota[];
   ai_model: string;
   ai_model_type: string;
+  email?: string;
+  gmail_client_id?: string;
+  gmail_client_secret?: string;
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_user?: string;
+  smtp_password?: string;
+  reminder_time?: string;
+  reminders_enabled?: boolean;
+  gmail_refresh_token?: string;
+  last_reminded_at?: string;
 }
 
 export const useConfigStore = defineStore('config', () => {
