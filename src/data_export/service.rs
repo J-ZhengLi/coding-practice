@@ -59,29 +59,38 @@ impl DataExportService {
             .await
             .context("Failed to disable foreign keys")?;
 
-        // Clear and repopulate each table
-        for table in TABLES {
-            // Delete all existing rows
-            let delete_sql = format!("DELETE FROM {}", table);
-            sqlx::query(AssertSqlSafe(delete_sql))
-                .execute(&mut *tx)
-                .await
-                .with_context(|| format!("Failed to clear table: {}", table))?;
+        // Perform import; capture result to ensure FK checks are re-enabled
+        let import_result: Result<()> = async {
+            for table in TABLES {
+                // Delete all existing rows
+                let delete_sql = format!("DELETE FROM {}", table);
+                sqlx::query(AssertSqlSafe(delete_sql))
+                    .execute(&mut *tx)
+                    .await
+                    .with_context(|| format!("Failed to clear table: {}", table))?;
 
-            // Insert rows from import data
-            if let Some(rows) = tables_obj.get(table).and_then(|v| v.as_array()) {
-                for row in rows {
-                    self.insert_row(&mut tx, table, row).await
-                        .with_context(|| format!("Failed to insert row into table: {}", table))?;
+                // Insert rows from import data
+                if let Some(rows) = tables_obj.get(table).and_then(|v| v.as_array()) {
+                    for row in rows {
+                        self.insert_row(&mut tx, table, row).await
+                            .with_context(|| format!("Failed to insert row into table: {}", table))?;
+                    }
                 }
             }
-        }
+            Ok(())
+        }.await;
 
-        // Re-enable foreign key checks
+        // Always re-enable foreign key checks, even if import failed.
+        // PRAGMA foreign_keys is connection-level and NOT transactional,
+        // so a rollback does not restore it. Without this, the connection
+        // returns to the pool with FK checks disabled.
         sqlx::query("PRAGMA foreign_keys = ON")
             .execute(&mut *tx)
             .await
             .context("Failed to re-enable foreign keys")?;
+
+        // Propagate any import error now that FK checks are restored
+        import_result?;
 
         // Commit transaction
         tx.commit().await
