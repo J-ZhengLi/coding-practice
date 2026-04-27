@@ -19,7 +19,8 @@ use axum::{
     response::IntoResponse,
 };
 use clap::Parser;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
+use axum::http::{HeaderValue, Method, header};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -106,11 +107,11 @@ async fn main() -> anyhow::Result<()> {
     // Setup data export service
     let data_export_service = Arc::new(data_export::DataExportService::new(db_pool.clone()));
 
-    // Setup CORS
+    // Setup CORS - restrict to localhost for security
     let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_origin("http://localhost:5173".parse::<HeaderValue>().expect("valid origin"))
+        .allow_methods([Method::GET, Method::POST, Method::DELETE])
+        .allow_headers([header::CONTENT_TYPE]);
 
     // Build router with 8-tuple state including all services
     let app = Router::new()
