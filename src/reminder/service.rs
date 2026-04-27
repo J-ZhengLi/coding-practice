@@ -105,7 +105,7 @@ impl ReminderService {
                             .or_else(|_| {
                                 // Try date-only format
                                 last.parse::<chrono::NaiveDate>()
-                                    .map(|d| d.and_hms_opt(0, 0, 0).unwrap())
+                                    .map(|d| d.and_hms_opt(0, 0, 0).expect("midnight is always a valid time"))
                             });
                         match last_date {
                             Ok(dt) => dt.date() < Local::now().date_naive(),
