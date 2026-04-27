@@ -54,20 +54,21 @@ onMounted(async () => {
     return;
   }
 
-  // Load existing exercises and materials for dashboard display
+  // Load existing exercises and materials for all configured languages
   if (configStore.config) {
     const language = configStore.config.preferred_language;
     const difficulty = preferredDifficulty.value;
+
     await Promise.all([
-      exerciseStore.fetchExercises(language, difficulty),
+      exerciseStore.fetchExercises(),
       materialStore.fetchMaterials(language, difficulty),
     ]);
 
     // Load progress history after exercises are loaded
     await loadProgressHistory();
 
-    // Per D-05: on-demand daily plan generation
-    await scheduleStore.fetchDailyPlan(configStore.config.preferred_language);
+    // Per D-05: on-demand daily plan generation — fetch ALL configured languages
+    await scheduleStore.fetchDailyPlan();
   }
 });
 
@@ -123,27 +124,47 @@ const handleGenerateExercises = async () => {
 
   generationError.value = null;
   generationWarning.value = null;
-  const language = configStore.config.preferred_language;
-  const difficulty = preferredDifficulty.value;
 
-  if (!difficulty) {
-    generationError.value = 'No skill level found for preferred language. Please reconfigure.';
+  const quotas = configStore.config.daily_quotas;
+  const skillLevels = configStore.config.skill_levels;
+  if (!quotas || quotas.length === 0) {
+    generationError.value = 'No language quotas configured. Please reconfigure.';
     return;
   }
 
-  const result = await exerciseStore.generateExercises(language, difficulty);
-  if (!result && exerciseStore.error) {
-    generationError.value = exerciseStore.error;
-  } else if (result && result.generated_count === 0) {
-    generationError.value = 'No exercises could be generated. Please verify your AI provider is running and try again.';
-  } else if (result) {
-    const aiCount = result.exercises.filter(e => e.source === 'ai_generated').length;
-    if (aiCount > 0 && aiCount < result.generated_count) {
-      generationWarning.value = `Generated ${result.generated_count} exercises (${aiCount} AI-generated as fallback — source materials unavailable)`;
-    } else if (aiCount === result.generated_count && result.generated_count > 0) {
-      generationWarning.value = `All ${result.generated_count} exercises are AI-generated (source materials unavailable)`;
+  let totalGenerated = 0;
+  let totalAiGenerated = 0;
+  let hasError = false;
+
+  for (const quota of quotas) {
+    const language = quota.language;
+    const skillLevel = skillLevels?.find((s: LanguageSkillLevel) => s.language === language);
+    const difficulty = skillLevel?.skill_level || 'intermediate';
+
+    const result = await exerciseStore.generateExercises(language, difficulty);
+    if (!result && exerciseStore.error) {
+      hasError = true;
+      generationError.value = exerciseStore.error;
+      break;
+    } else if (result) {
+      totalGenerated += result.generated_count;
+      totalAiGenerated += result.exercises.filter(e => e.source === 'ai_generated').length;
+      if (result.generated_count === 0) {
+        hasError = true;
+        generationError.value = 'No exercises could be generated. Please verify your AI provider is running and try again.';
+        break;
+      }
     }
-    await scheduleStore.fetchDailyPlan(configStore.config.preferred_language);
+  }
+
+  if (!hasError && totalGenerated > 0) {
+    if (totalAiGenerated > 0 && totalAiGenerated < totalGenerated) {
+      generationWarning.value = `Generated ${totalGenerated} exercises (${totalAiGenerated} AI-generated as fallback — source materials unavailable)`;
+    } else if (totalAiGenerated === totalGenerated) {
+      generationWarning.value = `All ${totalGenerated} exercises are AI-generated (source materials unavailable)`;
+    }
+    // Refresh daily plan for ALL configured languages
+    await scheduleStore.fetchDailyPlan();
   }
 };
 
@@ -211,8 +232,15 @@ const exerciseHistory = computed(() => {
   <div class="dashboard-page">
     <div class="dashboard-container">
       <div class="dashboard-header">
-        <h1>Dashboard</h1>
-        <p>Your personalized learning space</p>
+        <div class="header-top">
+          <div>
+            <h1>Dashboard</h1>
+            <p>Your personalized learning space</p>
+          </div>
+          <router-link to="/settings" class="settings-gear-btn" title="Settings">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </router-link>
+        </div>
       </div>
 
       <!-- Error Alert -->
@@ -389,6 +417,29 @@ const exerciseHistory = computed(() => {
 .dashboard-header {
   text-align: center;
   margin-bottom: 3rem;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.settings-gear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  color: #6b7280;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.settings-gear-btn:hover {
+  background-color: #f3f4f6;
+  color: #1f2937;
 }
 
 .dashboard-header h1 {

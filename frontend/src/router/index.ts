@@ -12,6 +12,9 @@ const DashboardPage = () => import('../views/DashboardPage.vue').catch(() => {
 // Lazy-loaded per Pitfall 4: Monaco Editor adds ~2-4MB, must be code-split
 const ExerciseEditorPage = () => import('../views/ExerciseEditorPage.vue');
 const ResultsPage = () => import('../views/ResultsPage.vue');
+const SettingsPage = () => import('../views/SettingsPage.vue').catch(() => {
+  return { template: '<div>Settings Page (placeholder)</div>' };
+});
 
 const routes: RouteRecordRaw[] = [
   {
@@ -42,6 +45,12 @@ const routes: RouteRecordRaw[] = [
     name: 'results',
     component: ResultsPage,
     meta: { requiresConfig: true, title: 'Results' },
+  },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: SettingsPage,
+    meta: { requiresConfig: true, title: 'Settings' },
   },
 ];
 
