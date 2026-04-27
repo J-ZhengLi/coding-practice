@@ -4,6 +4,7 @@ pub mod materials;
 pub mod exercises;
 pub mod submissions;
 pub mod schedule;
+pub mod reminder;
 
 use std::sync::Arc;
 
@@ -15,9 +16,10 @@ use crate::submission::service::SubmissionService;
 use crate::db::submission_repo::SqliteSubmissionRepository;
 use crate::schedule::ScheduleService;
 use crate::db::review_schedule_repo::SqliteReviewScheduleRepository;
+use crate::reminder::ReminderService;
 
 /// Shared application state type matching the router state.
-/// Extended from 5-tuple to 6-tuple to include ScheduleService.
+/// Extended from 6-tuple to 7-tuple to include ReminderService.
 pub type AppState = (
     Arc<ConfigService<SqliteConfigRepository>>,
     Arc<OllamaService>,
@@ -25,6 +27,7 @@ pub type AppState = (
     Arc<ExerciseService>,
     Arc<SubmissionService<SqliteSubmissionRepository>>,
     Arc<ScheduleService<SqliteReviewScheduleRepository>>,
+    Arc<ReminderService>,
 );
 
 pub use config::{get_config_handler, save_config_handler, check_configured_handler};
@@ -42,3 +45,4 @@ pub use submissions::{
     get_solution_handler, get_daily_progress_handler, get_score_trend_handler,
 };
 pub use schedule::{get_daily_plan_handler, get_schedule_status_handler};
+pub use reminder::{test_reminder_handler, get_reminder_status_handler};

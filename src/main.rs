@@ -8,6 +8,7 @@ mod exercise;
 mod submission;
 mod scoring;
 mod schedule;
+mod reminder;
 mod logging;
 
 use axum::{
@@ -97,13 +98,17 @@ async fn main() -> anyhow::Result<()> {
     let review_schedule_repository = db::SqliteReviewScheduleRepository::new(db_pool.clone());
     let schedule_service = Arc::new(schedule::ScheduleService::new(review_schedule_repository));
 
+    // Setup reminder service
+    let reminder_service = Arc::new(reminder::ReminderService::new(config_service.clone()));
+    let _reminder_task = tokio::spawn(reminder_service.clone().run_scheduler());
+
     // Setup CORS
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Build router with 6-tuple state including SubmissionService and ScheduleService
+    // Build router with 7-tuple state including SubmissionService, ScheduleService, and ReminderService
     let app = Router::new()
         .route("/api/config", get(api::get_config_handler).post(api::save_config_handler))
         .route("/api/config/check", get(api::check_configured_handler))
@@ -122,9 +127,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/progress/trend", get(api::get_score_trend_handler))
         .route("/api/schedule/daily-plan", get(api::get_daily_plan_handler))
         .route("/api/schedule/status", get(api::get_schedule_status_handler))
+        .route("/api/reminders/test", post(api::test_reminder_handler))
+        .route("/api/reminders/status", get(api::get_reminder_status_handler))
         .route("/health", get(health_check))
         .layer(cors)
-        .with_state((config_service.clone(), ollama_service.clone(), material_service.clone(), exercise_service.clone(), submission_service.clone(), schedule_service.clone()));
+        .with_state((config_service.clone(), ollama_service.clone(), material_service.clone(), exercise_service.clone(), submission_service.clone(), schedule_service.clone(), reminder_service.clone()));
 
     // Start server
     let addr = SocketAddr::from(([127, 0,  0, 1], port));

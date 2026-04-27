@@ -25,7 +25,7 @@ pub async fn get_daily_plan_handler(
     State(state): State<AppState>,
     Query(params): Query<DailyPlanQueryParams>,
 ) -> Result<impl IntoResponse> {
-    let (config_service, _, _, exercise_service, submission_service, schedule_service) = state;
+    let (config_service, _, _, exercise_service, submission_service, schedule_service, _) = state;
 
     let daily_plan = schedule_service.get_daily_plan(
         &config_service,
@@ -39,7 +39,7 @@ pub async fn get_daily_plan_handler(
 
 /// GET /api/schedule/status - Get review schedule status summary.
 pub async fn get_schedule_status_handler(
-    State((_, _, _, _, _, schedule_service)): State<AppState>,
+    State((_, _, _, _, _, schedule_service, _)): State<AppState>,
 ) -> Result<impl IntoResponse> {
     let status = schedule_service.get_schedule_status().await?;
     Ok((StatusCode::OK, Json(status)))

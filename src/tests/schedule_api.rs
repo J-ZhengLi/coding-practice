@@ -64,6 +64,11 @@ fn make_test_config(language: &str, quota: u32) -> crate::config::model::UserCon
         smtp_host: None,
         smtp_port: None,
         smtp_user: None,
+        reminder_time: None,
+        reminders_enabled: None,
+        gmail_refresh_token: None,
+        last_reminded_at: None,
+        smtp_password: None,
     }
 }
 
