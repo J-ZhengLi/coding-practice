@@ -84,6 +84,15 @@ export const useSettingsStore = defineStore('settings', () => {
     verificationUrl.value = null;
     error.value = null;
 
+    // Auto-save config first so the backend can read the latest Gmail credentials
+    if (hasChanges.value) {
+      try {
+        await saveConfig();
+      } catch {
+        // If save fails, continue — backend will use existing stored credentials
+      }
+    }
+
     try {
       const response = await apiClient.post<{
         device_code: string;
@@ -133,10 +142,9 @@ export const useSettingsStore = defineStore('settings', () => {
           client_secret: config.value!.gmail_client_secret || '',
         });
 
-        if (response.data.status === 'success' && response.data.refresh_token) {
-          // Update config with new refresh token
-          config.value!.gmail_refresh_token = response.data.refresh_token;
-          originalConfig.value = JSON.parse(JSON.stringify(config.value));
+        if (response.data.status === 'success') {
+          // Re-fetch config to get the updated refresh_token stored server-side
+          await fetchConfig();
           gmailStatus.value = 'connected';
           gmailPolling.value = false;
           return;

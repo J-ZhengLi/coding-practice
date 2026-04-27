@@ -21,7 +21,6 @@ pub async fn save_config_handler(
     body: Bytes,
 ) -> Result<impl IntoResponse> {
     tracing::info!("Config save request received ({} bytes)", body.len());
-    tracing::debug!("Raw config request body: {}", String::from_utf8_lossy(&body));
 
     let request: ConfigRequest = serde_json::from_slice(&body)
         .map_err(|e| {

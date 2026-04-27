@@ -166,11 +166,12 @@ const getQuotaForLanguage = (lang: string): number => {
 
 const setQuotaForLanguage = (lang: string, quota: number) => {
   if (!settingsStore.config) return;
+  const safeQuota = Number.isFinite(quota) ? Math.max(1, Math.round(quota)) : 1;
   const existing = settingsStore.config.daily_quotas.find(q => q.language === lang);
   if (existing) {
-    existing.quota = Math.max(1, quota);
+    existing.quota = safeQuota;
   } else {
-    settingsStore.config.daily_quotas.push({ language: lang, quota: Math.max(1, quota) });
+    settingsStore.config.daily_quotas.push({ language: lang, quota: safeQuota });
   }
 };
 

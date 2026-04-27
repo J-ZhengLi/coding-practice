@@ -1,19 +1,22 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { useConfigStore } from '../stores/config';
 
-const ConfigurationPage = () => import('../views/ConfigurationPage.vue').catch(() => {
-  return { template: '<div>Configuration Page (placeholder)</div>' };
+const ConfigurationPage = () => import('../views/ConfigurationPage.vue').catch((err) => {
+  console.error('Failed to load ConfigurationPage:', err);
+  return { template: '<div class="error-state">Failed to load page. Please refresh.</div>' };
 });
 
-const DashboardPage = () => import('../views/DashboardPage.vue').catch(() => {
-  return { template: '<div>Dashboard Page (placeholder)</div>' };
+const DashboardPage = () => import('../views/DashboardPage.vue').catch((err) => {
+  console.error('Failed to load DashboardPage:', err);
+  return { template: '<div class="error-state">Failed to load page. Please refresh.</div>' };
 });
 
 // Lazy-loaded per Pitfall 4: Monaco Editor adds ~2-4MB, must be code-split
 const ExerciseEditorPage = () => import('../views/ExerciseEditorPage.vue');
 const ResultsPage = () => import('../views/ResultsPage.vue');
-const SettingsPage = () => import('../views/SettingsPage.vue').catch(() => {
-  return { template: '<div>Settings Page (placeholder)</div>' };
+const SettingsPage = () => import('../views/SettingsPage.vue').catch((err) => {
+  console.error('Failed to load SettingsPage:', err);
+  return { template: '<div class="error-state">Failed to load page. Please refresh.</div>' };
 });
 
 const routes: RouteRecordRaw[] = [
@@ -63,8 +66,10 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const configStore = useConfigStore();
 
-  // Check if configuration status is known
-  if (!configStore.loading && configStore.isConfigured === false && to.meta.requiresConfig) {
+  // While loading config status, allow navigation (guard will re-evaluate)
+  if (configStore.loading) {
+    next();
+  } else if (configStore.isConfigured === false && to.meta.requiresConfig) {
     // Not configured, redirect to configuration page
     next({ name: 'configuration' });
   } else if (configStore.isConfigured === true && to.name === 'configuration') {

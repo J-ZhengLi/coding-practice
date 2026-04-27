@@ -59,29 +59,38 @@ impl DataExportService {
             .await
             .context("Failed to disable foreign keys")?;
 
-        // Clear and repopulate each table
-        for table in TABLES {
-            // Delete all existing rows
-            let delete_sql = format!("DELETE FROM {}", table);
-            sqlx::query(AssertSqlSafe(delete_sql))
-                .execute(&mut *tx)
-                .await
-                .with_context(|| format!("Failed to clear table: {}", table))?;
+        // Perform import; capture result to ensure FK checks are re-enabled
+        let import_result: Result<()> = async {
+            for table in TABLES {
+                // Delete all existing rows
+                let delete_sql = format!("DELETE FROM {}", table);
+                sqlx::query(AssertSqlSafe(delete_sql))
+                    .execute(&mut *tx)
+                    .await
+                    .with_context(|| format!("Failed to clear table: {}", table))?;
 
-            // Insert rows from import data
-            if let Some(rows) = tables_obj.get(table).and_then(|v| v.as_array()) {
-                for row in rows {
-                    self.insert_row(&mut tx, table, row).await
-                        .with_context(|| format!("Failed to insert row into table: {}", table))?;
+                // Insert rows from import data
+                if let Some(rows) = tables_obj.get(table).and_then(|v| v.as_array()) {
+                    for row in rows {
+                        self.insert_row(&mut tx, table, row).await
+                            .with_context(|| format!("Failed to insert row into table: {}", table))?;
+                    }
                 }
             }
-        }
+            Ok(())
+        }.await;
 
-        // Re-enable foreign key checks
+        // Always re-enable foreign key checks, even if import failed.
+        // PRAGMA foreign_keys is connection-level and NOT transactional,
+        // so a rollback does not restore it. Without this, the connection
+        // returns to the pool with FK checks disabled.
         sqlx::query("PRAGMA foreign_keys = ON")
             .execute(&mut *tx)
             .await
             .context("Failed to re-enable foreign keys")?;
+
+        // Propagate any import error now that FK checks are restored
+        import_result?;
 
         // Commit transaction
         tx.commit().await
@@ -166,7 +175,20 @@ impl DataExportService {
             return Ok(()); // Empty object, nothing to insert
         }
 
-        let columns: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
+        // Validate column names against the actual table schema to prevent SQL injection
+        let valid_columns = self.get_table_columns(table).await?;
+        let valid_set: std::collections::HashSet<&str> = valid_columns.iter().map(|s| s.as_str()).collect();
+
+        // Filter to valid, non-null columns only. Null columns are skipped so
+        // SQLite uses the column DEFAULT (or NULL) instead of an empty string.
+        let columns: Vec<&str> = obj.keys()
+            .map(|k| k.as_str())
+            .filter(|k| valid_set.contains(k) && !obj[*k].is_null())
+            .collect();
+
+        if columns.is_empty() {
+            return Ok(()); // No valid non-null columns, nothing to insert
+        }
         let placeholders: Vec<&str> = columns.iter().map(|_| "?").collect();
 
         let sql = format!(
@@ -181,7 +203,7 @@ impl DataExportService {
             .map(|col| {
                 let value = &obj[*col];
                 match value {
-                    Value::Null => String::new(),
+                    Value::Null => unreachable!("null columns already filtered"),
                     Value::Bool(b) => if *b { "1".to_string() } else { "0".to_string() },
                     Value::Number(n) => n.to_string(),
                     Value::String(s) => s.clone(),

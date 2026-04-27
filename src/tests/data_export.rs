@@ -170,20 +170,36 @@ async fn test_import_atomic_rollback_on_error() {
 
     let service = DataExportService::new(pool.clone());
 
-    // Try importing invalid data with malformed rows
+    // Try importing data that passes validation but fails during INSERT.
+    // This exercises the actual transaction rollback path (not just input validation).
+    // The exercises table has a CHECK constraint on difficulty, so an invalid
+    // value will cause a runtime SQL error during the insert loop.
     let bad_import = serde_json::json!({
         "version": "1.0",
         "exported_at": "2024-01-01T00:00:00Z",
         "tables": {
-            "config": [{"key": 123, "value": "test"}],  // key should be string, not number - but SQLite is flexible
-            "materials": [{"not_a_real_column": "value"}],
-            "exercises": [{"also_fake": "data"}],
-            "submissions": "not_an_array",  // This will fail validation
+            "config": [],
+            "materials": [],
+            "exercises": [{
+                "id": 1,
+                "material_id": 999,
+                "title": "Test Exercise",
+                "description": "A test",
+                "language": "python",
+                "difficulty": "invalid_level",
+                "todo_comment": "TODO: fix",
+                "original_code": "fn main() {}",
+                "exercise_code": "fn main() {}",
+                "concept": "basics",
+                "start_line": 1,
+                "end_line": 5
+            }],
+            "submissions": [],
             "review_schedule": []
         }
     });
 
-    // The import should fail because submissions is not an array
+    // The import should fail because the exercises row violates the CHECK constraint
     let result = service.import_all(&bad_import).await;
     assert!(result.is_err());
 
