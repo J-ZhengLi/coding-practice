@@ -7,7 +7,6 @@ import { sendTestReminder } from '../api/reminder';
 import SectionNav from '../components/settings/SectionNav.vue';
 import ToggleSwitch from '../components/settings/ToggleSwitch.vue';
 import GmailConnectPanel from '../components/settings/GmailConnectPanel.vue';
-import NotificationTierBadge from '../components/settings/NotificationTierBadge.vue';
 import FileDropZone from '../components/settings/FileDropZone.vue';
 
 const router = useRouter();
@@ -22,8 +21,7 @@ const importSuccess = ref(false);
 const sections = [
   { id: 'general', label: 'General', icon: '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>' },
   { id: 'ai-model', label: 'AI Model', icon: '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z"/></svg>' },
-  { id: 'email-notifications', label: 'Email & Notifications', icon: '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/></svg>' },
-  { id: 'gmail', label: 'Gmail Connection', icon: '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/></svg>' },
+  { id: 'notifications', label: 'Notifications', icon: '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>' },
   { id: 'data-management', label: 'Data Management', icon: '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>' },
 ];
 
@@ -44,23 +42,34 @@ const skillLevelOptions = [
 const ollamaModels = ref<Array<{ name: string }>>([]);
 const ollamaLoading = ref(false);
 
-const apiModelOptions = [
-  { value: 'gpt-4o', label: 'gpt-4o' },
-  { value: 'gpt-4o-mini', label: 'gpt-4o-mini' },
-  { value: 'claude-3-5-sonnet', label: 'claude-3-5-sonnet' },
-  { value: 'claude-3-5-haiku', label: 'claude-3-5-haiku' },
-];
-
 const modelTypeOptions = [
   { value: 'local', label: 'Local (Ollama)' },
   { value: 'api', label: 'API' },
 ];
 
-const availableModels = computed(() => {
-  if (settingsStore.config?.ai_model_type === 'local') {
-    return ollamaModels.value.map(m => ({ value: m.name, label: m.name }));
-  }
-  return apiModelOptions;
+const reminderMethodOptions = [
+  { value: 'gmail', label: 'Gmail' },
+  { value: 'smtp', label: 'SMTP' },
+  { value: 'desktop', label: 'Desktop notification' },
+];
+
+const reminderMethod = computed<'gmail' | 'smtp' | 'desktop'>({
+  get: () => {
+    if (!settingsStore.config) return 'desktop';
+    if (settingsStore.config.gmail_refresh_token) return 'gmail';
+    if (settingsStore.config.smtp_host) return 'smtp';
+    return 'desktop';
+  },
+  set: (value: 'gmail' | 'smtp' | 'desktop') => {
+    if (!settingsStore.config) return;
+    // Clear fields from the previous method
+    settingsStore.config.smtp_host = '';
+    settingsStore.config.smtp_port = undefined;
+    settingsStore.config.smtp_user = '';
+    settingsStore.config.smtp_password = '';
+    settingsStore.config.gmail_client_id = '';
+    settingsStore.config.gmail_client_secret = '';
+  },
 });
 
 onMounted(async () => {
@@ -271,20 +280,6 @@ const handleTestReminder = async () => {
             General
           </h2>
           <div class="section-body">
-            <!-- Preferred Language -->
-            <div class="form-group">
-              <label class="form-label" for="preferred-language">Preferred Language</label>
-              <select
-                id="preferred-language"
-                v-model="settingsStore.config.preferred_language"
-                class="form-select"
-              >
-                <option v-for="lang in languageOptions" :key="lang.value" :value="lang.value">
-                  {{ lang.label }}
-                </option>
-              </select>
-            </div>
-
             <!-- Per-Language Config -->
             <div class="language-configs">
               <h3 class="sub-heading">Languages</h3>
@@ -390,27 +385,15 @@ const handleTestReminder = async () => {
               </p>
             </div>
 
-            <!-- Model Input (API) -->
-            <div v-if="settingsStore.config.ai_model_type === 'api'" class="form-group">
-              <label class="form-label" for="api-model">Model Name</label>
-              <select
-                id="api-model"
-                v-model="settingsStore.config.ai_model"
-                class="form-select"
-              >
-                <option v-for="opt in apiModelOptions" :key="opt.value" :value="opt.value">
-                  {{ opt.label }}
-                </option>
-              </select>
-            </div>
+            <!-- Model Input (API) - no model name needed -->
           </div>
         </section>
 
-        <!-- Email & Notifications Section -->
-        <section id="email-notifications" class="settings-section">
+        <!-- Notifications Section -->
+        <section id="notifications" class="settings-section">
           <h2 class="section-heading">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4L12 13 2 4"/></svg>
-            Email & Notifications
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Notifications
           </h2>
           <div class="section-body">
             <!-- Enable Reminders Toggle -->
@@ -424,27 +407,18 @@ const handleTestReminder = async () => {
               </div>
             </div>
 
-            <!-- Notification Tier -->
+            <!-- Reminder Method -->
             <div class="form-group">
-              <NotificationTierBadge :tier="settingsStore.notificationTier" />
-            </div>
-
-            <!-- Test Reminder -->
-            <div class="form-group">
-              <button
-                @click="handleTestReminder"
-                :disabled="testReminderSending || !settingsStore.config?.reminders_enabled"
-                class="action-btn secondary"
+              <label class="form-label" for="reminder-method">Reminder Method</label>
+              <select
+                id="reminder-method"
+                v-model="reminderMethod"
+                class="form-select"
               >
-                <span v-if="testReminderSending" class="btn-spinner"></span>
-                {{ testReminderSending ? 'Sending...' : 'Send Test Reminder' }}
-              </button>
-              <div v-if="testReminderResult" :class="['test-reminder-result', testReminderResult.success ? 'test-reminder-success' : 'test-reminder-error']">
-                {{ testReminderResult.message }}
-              </div>
-              <p v-if="!settingsStore.config?.reminders_enabled" class="hint-text">
-                Enable reminders first to send a test notification.
-              </p>
+                <option v-for="opt in reminderMethodOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
             </div>
 
             <!-- Email -->
@@ -470,101 +444,107 @@ const handleTestReminder = async () => {
               />
             </div>
 
+            <!-- Gmail-specific fields -->
+            <template v-if="reminderMethod === 'gmail'">
+              <hr class="section-divider" />
+              <h3 class="sub-heading">Gmail OAuth Credentials</h3>
+              <p class="hint-text">These are needed for Gmail API notification. The Connect button below handles the OAuth flow.</p>
+
+              <div class="form-group">
+                <label class="form-label" for="gmail-client-id">Gmail Client ID</label>
+                <input
+                  id="gmail-client-id"
+                  type="text"
+                  v-model="settingsStore.config.gmail_client_id"
+                  placeholder="your-client-id.apps.googleusercontent.com"
+                  class="form-input"
+                />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="gmail-client-secret">Gmail Client Secret</label>
+                <input
+                  id="gmail-client-secret"
+                  type="password"
+                  v-model="settingsStore.config.gmail_client_secret"
+                  placeholder="GOCSPX-..."
+                  class="form-input"
+                />
+              </div>
+
+              <div class="form-group">
+                <GmailConnectPanel />
+              </div>
+            </template>
+
+            <!-- SMTP-specific fields -->
+            <template v-if="reminderMethod === 'smtp'">
+              <hr class="section-divider" />
+              <h3 class="sub-heading">SMTP Configuration</h3>
+
+              <div class="form-group">
+                <label class="form-label" for="smtp-host">SMTP Host</label>
+                <input
+                  id="smtp-host"
+                  type="text"
+                  v-model="settingsStore.config.smtp_host"
+                  placeholder="smtp.gmail.com"
+                  class="form-input"
+                />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="smtp-port">SMTP Port</label>
+                <input
+                  id="smtp-port"
+                  type="number"
+                  v-model.number="settingsStore.config.smtp_port"
+                  placeholder="587"
+                  class="form-input w-32"
+                />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="smtp-user">SMTP Username</label>
+                <input
+                  id="smtp-user"
+                  type="text"
+                  v-model="settingsStore.config.smtp_user"
+                  placeholder="your@email.com"
+                  class="form-input"
+                />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="smtp-password">SMTP Password</label>
+                <input
+                  id="smtp-password"
+                  type="password"
+                  v-model="settingsStore.config.smtp_password"
+                  placeholder="App-specific password"
+                  class="form-input"
+                />
+              </div>
+            </template>
+
+            <!-- Test Reminder -->
             <hr class="section-divider" />
-
-            <h3 class="sub-heading">SMTP Configuration</h3>
-
-            <!-- SMTP Host -->
             <div class="form-group">
-              <label class="form-label" for="smtp-host">SMTP Host</label>
-              <input
-                id="smtp-host"
-                type="text"
-                v-model="settingsStore.config.smtp_host"
-                placeholder="smtp.gmail.com"
-                class="form-input"
-              />
+              <button
+                @click="handleTestReminder"
+                :disabled="testReminderSending || !settingsStore.config?.reminders_enabled"
+                class="action-btn secondary"
+              >
+                <span v-if="testReminderSending" class="btn-spinner"></span>
+                {{ testReminderSending ? 'Sending...' : 'Send Test Reminder' }}
+              </button>
+              <div v-if="testReminderResult" :class="['test-reminder-result', testReminderResult.success ? 'test-reminder-success' : 'test-reminder-error']">
+                {{ testReminderResult.message }}
+              </div>
+              <p v-if="!settingsStore.config?.reminders_enabled" class="hint-text">
+                Enable reminders first to send a test notification.
+              </p>
             </div>
-
-            <!-- SMTP Port -->
-            <div class="form-group">
-              <label class="form-label" for="smtp-port">SMTP Port</label>
-              <input
-                id="smtp-port"
-                type="number"
-                v-model.number="settingsStore.config.smtp_port"
-                placeholder="587"
-                class="form-input w-32"
-              />
-            </div>
-
-            <!-- SMTP User -->
-            <div class="form-group">
-              <label class="form-label" for="smtp-user">SMTP Username</label>
-              <input
-                id="smtp-user"
-                type="text"
-                v-model="settingsStore.config.smtp_user"
-                placeholder="your@email.com"
-                class="form-input"
-              />
-            </div>
-
-            <!-- SMTP Password -->
-            <div class="form-group">
-              <label class="form-label" for="smtp-password">SMTP Password</label>
-              <input
-                id="smtp-password"
-                type="password"
-                v-model="settingsStore.config.smtp_password"
-                placeholder="App-specific password"
-                class="form-input"
-              />
-            </div>
-
-            <hr class="section-divider" />
-
-            <h3 class="sub-heading">Gmail OAuth Credentials</h3>
-            <p class="hint-text">These are only needed for Gmail API notification. The Connect button below handles the OAuth flow.</p>
-
-            <!-- Gmail Client ID -->
-            <div class="form-group">
-              <label class="form-label" for="gmail-client-id">Gmail Client ID</label>
-              <input
-                id="gmail-client-id"
-                type="text"
-                v-model="settingsStore.config.gmail_client_id"
-                placeholder="your-client-id.apps.googleusercontent.com"
-                class="form-input"
-              />
-            </div>
-
-            <!-- Gmail Client Secret -->
-            <div class="form-group">
-              <label class="form-label" for="gmail-client-secret">Gmail Client Secret</label>
-              <input
-                id="gmail-client-secret"
-                type="password"
-                v-model="settingsStore.config.gmail_client_secret"
-                placeholder="GOCSPX-..."
-                class="form-input"
-              />
-            </div>
-          </div>
-        </section>
-
-        <!-- Gmail Connection Section -->
-        <section id="gmail" class="settings-section">
-          <h2 class="section-heading">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-            Gmail Connection
-          </h2>
-          <div class="section-body">
-            <p class="section-description">
-              Connect your Gmail account to send reminders via the Gmail API. This uses a device code flow
-              that does not require a redirect URI.
-            </p>
-            <GmailConnectPanel />
           </div>
         </section>
 
