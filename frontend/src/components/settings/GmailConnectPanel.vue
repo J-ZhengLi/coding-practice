@@ -8,7 +8,14 @@ const copyDeviceCode = async () => {
     try {
       await navigator.clipboard.writeText(settingsStore.deviceCode);
     } catch {
-      // Fallback: select text for manual copy
+      // Fallback: select the code text for manual copy
+      const codeEl = document.querySelector('.device-code');
+      if (codeEl) {
+        const range = document.createRange();
+        range.selectNodeContents(codeEl);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+      }
     }
   }
 };
