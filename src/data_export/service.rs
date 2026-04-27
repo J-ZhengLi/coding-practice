@@ -48,6 +48,15 @@ impl DataExportService {
         let tables_obj = data["tables"].as_object()
             .context("tables field is not an object")?;
 
+        // Pre-compute valid column names for each table before starting the
+        // transaction, so insert_row doesn't need a separate pool connection
+        // (which would deadlock with max_connections=1).
+        let mut table_columns: std::collections::HashMap<&str, Vec<String>> =
+            std::collections::HashMap::new();
+        for table in TABLES {
+            table_columns.insert(table, self.get_table_columns(table).await?);
+        }
+
         // Begin transaction for atomic import
         let mut tx = self.pool.begin().await
             .context("Failed to begin import transaction")?;
@@ -71,8 +80,9 @@ impl DataExportService {
 
                 // Insert rows from import data
                 if let Some(rows) = tables_obj.get(table).and_then(|v| v.as_array()) {
+                    let valid_cols = table_columns.get(table).map(|v| v.as_slice()).unwrap_or(&[]);
                     for row in rows {
-                        self.insert_row(&mut tx, table, row).await
+                        Self::insert_row(&mut tx, table, row, valid_cols).await
                             .with_context(|| format!("Failed to insert row into table: {}", table))?;
                     }
                 }
@@ -161,12 +171,12 @@ impl DataExportService {
         Value::Null
     }
 
-    /// Insert a single JSON row into a table using dynamic column names.
+    /// Insert a single JSON row into a table using pre-validated column names.
     async fn insert_row(
-        &self,
         tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
         table: &str,
         row: &Value,
+        valid_columns: &[String],
     ) -> Result<()> {
         let obj = row.as_object()
             .context("Row is not a JSON object")?;
@@ -176,7 +186,6 @@ impl DataExportService {
         }
 
         // Validate column names against the actual table schema to prevent SQL injection
-        let valid_columns = self.get_table_columns(table).await?;
         let valid_set: std::collections::HashSet<&str> = valid_columns.iter().map(|s| s.as_str()).collect();
 
         // Filter to valid, non-null columns only. Null columns are skipped so
