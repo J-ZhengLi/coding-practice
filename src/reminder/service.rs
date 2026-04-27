@@ -231,7 +231,18 @@ impl ReminderService {
                     return;
                 }
                 Err(e) => {
+                    let err_msg = format!("{}", e);
                     tracing::error!("Failed to send reminder via {}: {}", tier, e);
+
+                    // If Gmail token is invalid, clear the refresh_token so the user
+                    // can re-authorize via the /api/gmail/connect flow
+                    if *tier == NotificationTier::Gmail && err_msg.contains("GMAIL_TOKEN_INVALID") {
+                        tracing::warn!("Gmail refresh token is invalid, clearing it. User needs to re-authorize.");
+                        if let Err(clear_err) = self.clear_gmail_token().await {
+                            tracing::error!("Failed to clear invalid Gmail token: {}", clear_err);
+                        }
+                    }
+
                     // Continue to next tier in the fallback chain
                 }
             }
@@ -274,6 +285,16 @@ impl ReminderService {
         let mut config = self.config_service.get_config().await?;
         config.last_reminded_at = Some(timestamp.to_string());
         self.config_service.save_config(&config).await
+    }
+
+    /// Clear the Gmail refresh_token when it's been invalidated.
+    /// This forces the user to re-authorize via the /api/gmail/connect flow.
+    async fn clear_gmail_token(&self) -> Result<()> {
+        let mut config = self.config_service.get_config().await?;
+        config.gmail_refresh_token = None;
+        self.config_service.save_config(&config).await?;
+        tracing::info!("Cleared invalid Gmail refresh_token from config");
+        Ok(())
     }
 }
 
@@ -347,9 +368,23 @@ pub async fn send_test_reminder(
                 return Ok(*tier);
             }
             Err(e) => {
+                let err_msg = format!("{}", e);
                 tracing::error!("Test reminder failed via {}: {}", tier, e);
                 last_error = Some(format!("{} (tried {})", e, tier));
                 last_tier = *tier;
+
+                // If Gmail token is invalid, clear it so the user can re-authorize
+                if *tier == NotificationTier::Gmail && err_msg.contains("GMAIL_TOKEN_INVALID") {
+                    tracing::warn!("Gmail refresh token is invalid (test), clearing it.");
+                    if let Err(clear_err) = (|| async {
+                        let mut cfg = config_service_inner.get_config().await?;
+                        cfg.gmail_refresh_token = None;
+                        config_service_inner.save_config(&cfg).await?;
+                        Ok::<(), crate::error::AppError>(())
+                    })().await {
+                        tracing::error!("Failed to clear invalid Gmail token: {}", clear_err);
+                    }
+                }
             }
         }
     }

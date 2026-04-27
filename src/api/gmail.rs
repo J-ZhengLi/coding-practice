@@ -208,3 +208,35 @@ pub async fn poll_gmail_token_handler(
         })),
     ))
 }
+
+/// POST /api/gmail/disconnect - Disconnect Gmail by clearing the stored refresh_token.
+///
+/// This is called when a Gmail token is invalid/expired and the user
+/// needs to re-authorize, or when the user wants to disconnect Gmail.
+pub async fn disconnect_gmail_handler(
+    State((config_service, _, _, _, _, _, _)): State<AppState>,
+) -> Result<impl IntoResponse> {
+    let mut config = config_service.get_config().await?;
+
+    if config.gmail_refresh_token.is_none() {
+        return Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "already_disconnected",
+                "message": "Gmail is not connected"
+            })),
+        ));
+    }
+
+    config.gmail_refresh_token = None;
+    config_service.save_config(&config).await?;
+
+    tracing::info!("Gmail disconnected: refresh_token cleared");
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "status": "disconnected"
+        })),
+    ))
+}

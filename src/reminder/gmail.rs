@@ -32,6 +32,7 @@ impl GmailNotifier {
     }
 
     /// Refresh the OAuth2 access token using the stored refresh token.
+    /// Returns an error with "invalid_grant" in the message if the token has been revoked or expired.
     async fn refresh_access_token(&self) -> Result<String> {
         let params = [
             ("client_id", self.client_id.as_str()),
@@ -50,6 +51,12 @@ impl GmailNotifier {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
+
+            // Check for invalid_grant which means the refresh token is no longer valid
+            if body.contains("invalid_grant") {
+                anyhow::bail!("GMAIL_TOKEN_INVALID: Refresh token has been revoked or expired. Re-authorization required.");
+            }
+
             anyhow::bail!("Gmail token refresh failed: HTTP {} - {}", status, body);
         }
 
@@ -82,6 +89,12 @@ impl GmailNotifier {
         if !resp.status().is_success() {
             let status = resp.status();
             let response_body = resp.text().await.unwrap_or_default();
+
+            // 401 or 403 means the access token is invalid/expired
+            if status.as_u16() == 401 || status.as_u16() == 403 {
+                anyhow::bail!("GMAIL_TOKEN_INVALID: Access token rejected (HTTP {}). Re-authorization required.", status);
+            }
+
             anyhow::bail!("Gmail send failed: HTTP {} - {}", status, response_body);
         }
 
