@@ -166,7 +166,18 @@ impl DataExportService {
             return Ok(()); // Empty object, nothing to insert
         }
 
-        let columns: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
+        // Validate column names against the actual table schema to prevent SQL injection
+        let valid_columns = self.get_table_columns(table).await?;
+        let valid_set: std::collections::HashSet<&str> = valid_columns.iter().map(|s| s.as_str()).collect();
+
+        let columns: Vec<&str> = obj.keys()
+            .map(|k| k.as_str())
+            .filter(|k| valid_set.contains(k))
+            .collect();
+
+        if columns.is_empty() {
+            return Ok(()); // No valid columns, nothing to insert
+        }
         let placeholders: Vec<&str> = columns.iter().map(|_| "?").collect();
 
         let sql = format!(
