@@ -13,6 +13,10 @@ use super::notifier::Notifier;
 use super::gmail::GmailNotifier;
 use super::smtp::SmtpNotifier;
 use super::desktop::DesktopNotifier;
+use super::template::{random_encouraging_message, build_html_email, build_plain_email};
+
+/// Default app URL used in email templates.
+const DEFAULT_APP_URL: &str = "http://localhost:8001";
 
 /// Background service that sends daily learning reminders.
 ///
@@ -122,7 +126,67 @@ impl ReminderService {
         }
     }
 
-    /// Send a reminder notification via the highest-priority available tier.
+    /// Build email content (subject + HTML body + plain text body).
+    fn build_reminder_content() -> (String, String, String) {
+        let message = random_encouraging_message();
+        let html = build_html_email(message, DEFAULT_APP_URL);
+        let plain = build_plain_email(message, DEFAULT_APP_URL);
+        let subject = "Time for your daily coding practice!".to_string();
+        (subject, html, plain)
+    }
+
+    /// Build test reminder content (used by the /api/reminders/test endpoint).
+    fn build_reminder_content_test() -> (String, String, String) {
+        let html = build_html_email(
+            "This is a test notification from Coding Practice.",
+            DEFAULT_APP_URL,
+        );
+        let plain = build_plain_email(
+            "This is a test notification from Coding Practice.",
+            DEFAULT_APP_URL,
+        );
+        let subject = "Test Reminder".to_string();
+        (subject, html, plain)
+    }
+
+    /// Try sending via a specific notification tier.
+    /// Returns Ok(()) on success, Err with the error on failure.
+    async fn try_send_tier(config: &ReminderConfig, tier: NotificationTier, subject: &str, html_body: &str, plain_body: &str) -> anyhow::Result<()> {
+        match tier {
+            NotificationTier::Gmail => {
+                let notifier = GmailNotifier::new(
+                    config.gmail_refresh_token.clone().unwrap_or_default(),
+                    config.gmail_client_id.clone().unwrap_or_default(),
+                    config.gmail_client_secret.clone().unwrap_or_default(),
+                    config.email.clone().unwrap_or_default(),
+                );
+                // Gmail API expects the full HTML body
+                notifier.send(subject, html_body).await
+            }
+            NotificationTier::Smtp => {
+                let notifier = SmtpNotifier::new(
+                    config.smtp_host.clone().unwrap_or_default(),
+                    config.smtp_port.unwrap_or(587),
+                    config.smtp_user.clone().unwrap_or_default(),
+                    config.smtp_password.clone().unwrap_or_default(),
+                    config.email.clone().unwrap_or_default(),
+                );
+                // SMTP sends HTML email
+                notifier.send(subject, html_body).await
+            }
+            NotificationTier::Desktop => {
+                let notifier = DesktopNotifier::new();
+                // Desktop notifications use plain text (short format)
+                notifier.send(subject, plain_body).await
+            }
+            NotificationTier::None => {
+                anyhow::bail!("No notification tier available");
+            }
+        }
+    }
+
+    /// Send a reminder notification via the highest-priority available tier,
+    /// with fallback to lower-priority tiers on failure.
     pub async fn send_reminder(&self) {
         let config = match self.load_reminder_config().await {
             Some(c) => c,
@@ -132,52 +196,49 @@ impl ReminderService {
             }
         };
 
-        let tier = config.best_tier();
-        let title = "Coding Practice Reminder";
-        let body = "Time for your daily coding practice! Keep the streak going.";
+        let (subject, html_body, plain_body) = Self::build_reminder_content();
+        let best_tier = config.best_tier();
 
-        let result = match tier {
-            NotificationTier::Gmail => {
-                let notifier = GmailNotifier::new(
-                    config.gmail_refresh_token.unwrap_or_default(),
-                    config.gmail_client_id.unwrap_or_default(),
-                    config.gmail_client_secret.unwrap_or_default(),
-                    config.email.unwrap_or_default(),
-                );
-                notifier.send(title, body).await
-            }
-            NotificationTier::Smtp => {
-                let notifier = SmtpNotifier {
-                    host: config.smtp_host.unwrap_or_default(),
-                    port: config.smtp_port.unwrap_or(587),
-                    user: config.smtp_user.unwrap_or_default(),
-                    password: config.smtp_password.unwrap_or_default(),
-                    recipient: config.email.unwrap_or_default(),
-                };
-                notifier.send(title, body).await
-            }
-            NotificationTier::Desktop => {
-                let notifier = DesktopNotifier;
-                notifier.send(title, body).await
-            }
+        // Fallback chain: try each tier from highest to lowest
+        let tiers = match best_tier {
+            NotificationTier::Gmail => vec![
+                NotificationTier::Gmail,
+                NotificationTier::Smtp,
+                NotificationTier::Desktop,
+            ],
+            NotificationTier::Smtp => vec![
+                NotificationTier::Smtp,
+                NotificationTier::Desktop,
+            ],
+            NotificationTier::Desktop => vec![
+                NotificationTier::Desktop,
+            ],
             NotificationTier::None => {
                 tracing::warn!("No notification tier available for reminder");
                 return;
             }
         };
 
-        match result {
-            Ok(()) => {
-                // Update last_reminded_at to now
-                let now = chrono::Utc::now().to_rfc3339();
-                if let Err(e) = self.update_last_reminded_at(&now).await {
-                    tracing::error!("Failed to update last_reminded_at: {}", e);
+        for tier in &tiers {
+            match Self::try_send_tier(&config, *tier, &subject, &html_body, &plain_body).await {
+                Ok(()) => {
+                    tracing::info!("Reminder sent successfully via {} tier", tier);
+                    // Update last_reminded_at to now
+                    let now = chrono::Utc::now().to_rfc3339();
+                    if let Err(e) = self.update_last_reminded_at(&now).await {
+                        tracing::error!("Failed to update last_reminded_at: {}", e);
+                    }
+                    return;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to send reminder via {}: {}", tier, e);
+                    // Continue to next tier in the fallback chain
                 }
             }
-            Err(e) => {
-                tracing::error!("Failed to send reminder via {}: {}", tier, e);
-            }
         }
+
+        // All tiers failed — log but do not crash the scheduler
+        tracing::error!("All notification tiers failed. Scheduler will continue running.");
     }
 
     /// Load the ReminderConfig from the persisted UserConfig.
@@ -217,6 +278,7 @@ impl ReminderService {
 }
 
 /// Send a test reminder immediately (for the /api/reminders/test endpoint).
+/// Uses the fallback chain just like the scheduler does.
 pub async fn send_test_reminder(
     config_service: Arc<ConfigService<SqliteConfigRepository>>,
 ) -> Result<NotificationTier> {
@@ -246,34 +308,23 @@ pub async fn send_test_reminder(
         }
     };
 
-    let tier = reminder_config.best_tier();
-    let title = "Test Reminder";
-    let body = "This is a test notification from Coding Practice.";
+    let (subject, html_body, plain_body) = ReminderService::build_reminder_content_test();
+    let best_tier = reminder_config.best_tier();
 
-    let result = match tier {
-        NotificationTier::Gmail => {
-            let notifier = GmailNotifier::new(
-                reminder_config.gmail_refresh_token.unwrap_or_default(),
-                reminder_config.gmail_client_id.unwrap_or_default(),
-                reminder_config.gmail_client_secret.unwrap_or_default(),
-                reminder_config.email.unwrap_or_default(),
-            );
-            notifier.send(title, body).await
-        }
-        NotificationTier::Smtp => {
-            let notifier = SmtpNotifier {
-                host: reminder_config.smtp_host.unwrap_or_default(),
-                port: reminder_config.smtp_port.unwrap_or(587),
-                user: reminder_config.smtp_user.unwrap_or_default(),
-                password: reminder_config.smtp_password.unwrap_or_default(),
-                recipient: reminder_config.email.unwrap_or_default(),
-            };
-            notifier.send(title, body).await
-        }
-        NotificationTier::Desktop => {
-            let notifier = DesktopNotifier;
-            notifier.send(title, body).await
-        }
+    // Fallback chain: try each tier from highest to lowest
+    let tiers = match best_tier {
+        NotificationTier::Gmail => vec![
+            NotificationTier::Gmail,
+            NotificationTier::Smtp,
+            NotificationTier::Desktop,
+        ],
+        NotificationTier::Smtp => vec![
+            NotificationTier::Smtp,
+            NotificationTier::Desktop,
+        ],
+        NotificationTier::Desktop => vec![
+            NotificationTier::Desktop,
+        ],
         NotificationTier::None => {
             return Err(crate::error::AppError::Validation(
                 "No notification tier available. Configure Gmail, SMTP, or enable desktop notifications.".to_string(),
@@ -281,13 +332,30 @@ pub async fn send_test_reminder(
         }
     };
 
-    result.map_err(|e| crate::error::AppError::Validation(format!("Failed to send test: {}", e)))?;
+    let mut last_tier = NotificationTier::None;
+    let mut last_error: Option<String> = None;
 
-    // Update last_reminded_at for test
-    let now = chrono::Utc::now().to_rfc3339();
-    let mut cfg = config_service_inner.get_config().await?;
-    cfg.last_reminded_at = Some(now);
-    config_service_inner.save_config(&cfg).await?;
+    for tier in &tiers {
+        match ReminderService::try_send_tier(&reminder_config, *tier, &subject, &html_body, &plain_body).await {
+            Ok(()) => {
+                // Update last_reminded_at for test
+                let now = chrono::Utc::now().to_rfc3339();
+                let mut cfg = config_service_inner.get_config().await?;
+                cfg.last_reminded_at = Some(now);
+                config_service_inner.save_config(&cfg).await?;
 
-    Ok(tier)
+                return Ok(*tier);
+            }
+            Err(e) => {
+                tracing::error!("Test reminder failed via {}: {}", tier, e);
+                last_error = Some(format!("{} (tried {})", e, tier));
+                last_tier = *tier;
+            }
+        }
+    }
+
+    Err(crate::error::AppError::Validation(format!(
+        "Failed to send test reminder via all tiers. Last error: {}",
+        last_error.unwrap_or_else(|| format!("tier {:?} failed", last_tier))
+    )))
 }
