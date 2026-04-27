@@ -84,6 +84,15 @@ export const useSettingsStore = defineStore('settings', () => {
     verificationUrl.value = null;
     error.value = null;
 
+    // Auto-save config first so the backend can read the latest Gmail credentials
+    if (hasChanges.value) {
+      try {
+        await saveConfig();
+      } catch {
+        // If save fails, continue — backend will use existing stored credentials
+      }
+    }
+
     try {
       const response = await apiClient.post<{
         device_code: string;
