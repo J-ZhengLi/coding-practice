@@ -63,8 +63,10 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const configStore = useConfigStore();
 
-  // Check if configuration status is known
-  if (!configStore.loading && configStore.isConfigured === false && to.meta.requiresConfig) {
+  // While loading config status, allow navigation (guard will re-evaluate)
+  if (configStore.loading) {
+    next();
+  } else if (configStore.isConfigured === false && to.meta.requiresConfig) {
     // Not configured, redirect to configuration page
     next({ name: 'configuration' });
   } else if (configStore.isConfigured === true && to.name === 'configuration') {
