@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSettingsStore } from '../stores/settings';
 import { useConfigStore } from '../stores/config';
+import { sendTestReminder } from '../api/reminder';
 import SectionNav from '../components/settings/SectionNav.vue';
 import ToggleSwitch from '../components/settings/ToggleSwitch.vue';
 import GmailConnectPanel from '../components/settings/GmailConnectPanel.vue';
@@ -193,6 +194,30 @@ const languagesNotYetAdded = computed(() => {
   const added = new Set(settingsStore.config?.skill_levels?.map(s => s.language) || []);
   return languageOptions.filter(l => !added.has(l.value));
 });
+
+// Test reminder state
+const testReminderSending = ref(false);
+const testReminderResult = ref<{ success: boolean; message: string } | null>(null);
+
+const handleTestReminder = async () => {
+  testReminderSending.value = true;
+  testReminderResult.value = null;
+  try {
+    const result = await sendTestReminder();
+    testReminderResult.value = {
+      success: true,
+      message: `Test reminder sent via ${result.tier}`,
+    };
+  } catch (err: any) {
+    testReminderResult.value = {
+      success: false,
+      message: err.response?.data?.detail || err.message || 'Failed to send test reminder',
+    };
+  } finally {
+    testReminderSending.value = false;
+    setTimeout(() => { testReminderResult.value = null; }, 5000);
+  }
+};
 </script>
 
 <template>
@@ -401,6 +426,24 @@ const languagesNotYetAdded = computed(() => {
             <!-- Notification Tier -->
             <div class="form-group">
               <NotificationTierBadge :tier="settingsStore.notificationTier" />
+            </div>
+
+            <!-- Test Reminder -->
+            <div class="form-group">
+              <button
+                @click="handleTestReminder"
+                :disabled="testReminderSending || !settingsStore.config?.reminders_enabled"
+                class="action-btn secondary"
+              >
+                <span v-if="testReminderSending" class="btn-spinner"></span>
+                {{ testReminderSending ? 'Sending...' : 'Send Test Reminder' }}
+              </button>
+              <div v-if="testReminderResult" :class="['test-reminder-result', testReminderResult.success ? 'test-reminder-success' : 'test-reminder-error']">
+                {{ testReminderResult.message }}
+              </div>
+              <p v-if="!settingsStore.config?.reminders_enabled" class="hint-text">
+                Enable reminders first to send a test notification.
+              </p>
             </div>
 
             <!-- Email -->
@@ -805,6 +848,26 @@ const languagesNotYetAdded = computed(() => {
   font-size: 0.8rem;
   color: #9ca3af;
   margin-top: 0.25rem;
+}
+
+/* Test Reminder */
+.test-reminder-result {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+}
+
+.test-reminder-success {
+  color: #16a34a;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.test-reminder-error {
+  color: #dc2626;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
 }
 
 /* Language Configs */
