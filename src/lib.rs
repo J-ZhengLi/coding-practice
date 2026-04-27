@@ -9,6 +9,7 @@ pub mod submission;
 pub mod scoring;
 pub mod schedule;
 pub mod reminder;
+pub mod data_export;
 pub mod logging;
 
 #[cfg(test)]

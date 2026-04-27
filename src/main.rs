@@ -9,6 +9,7 @@ mod submission;
 mod scoring;
 mod schedule;
 mod reminder;
+mod data_export;
 mod logging;
 
 use axum::{
@@ -102,13 +103,16 @@ async fn main() -> anyhow::Result<()> {
     let reminder_service = Arc::new(reminder::ReminderService::new(config_service.clone()));
     let _reminder_task = tokio::spawn(reminder_service.clone().run_scheduler());
 
+    // Setup data export service
+    let data_export_service = Arc::new(data_export::DataExportService::new(db_pool.clone()));
+
     // Setup CORS
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Build router with 7-tuple state including SubmissionService, ScheduleService, and ReminderService
+    // Build router with 8-tuple state including all services
     let app = Router::new()
         .route("/api/config", get(api::get_config_handler).post(api::save_config_handler))
         .route("/api/config/check", get(api::check_configured_handler))
@@ -132,9 +136,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/gmail/connect", post(api::connect_gmail_handler))
         .route("/api/gmail/token", post(api::poll_gmail_token_handler))
         .route("/api/gmail/disconnect", post(api::disconnect_gmail_handler))
+        .route("/api/data/export", get(api::export_data_handler))
+        .route("/api/data/import", post(api::import_data_handler))
         .route("/health", get(health_check))
         .layer(cors)
-        .with_state((config_service.clone(), ollama_service.clone(), material_service.clone(), exercise_service.clone(), submission_service.clone(), schedule_service.clone(), reminder_service.clone()));
+        .with_state((config_service.clone(), ollama_service.clone(), material_service.clone(), exercise_service.clone(), submission_service.clone(), schedule_service.clone(), reminder_service.clone(), data_export_service.clone()));
 
     // Start server
     let addr = SocketAddr::from(([127, 0,  0, 1], port));

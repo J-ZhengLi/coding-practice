@@ -13,7 +13,7 @@ use super::AppState;
 /// POST /api/reminders/test - Send a test reminder notification.
 /// Triggers an immediate notification via the highest-priority available tier.
 pub async fn test_reminder_handler(
-    State((config_service, _, _, _, _, _, _)): State<AppState>,
+    State((config_service, _, _, _, _, _, _, _)): State<AppState>,
 ) -> Result<impl IntoResponse> {
     let tier = crate::reminder::send_test_reminder(config_service).await?;
 
@@ -29,7 +29,7 @@ pub async fn test_reminder_handler(
 /// GET /api/reminders/status - Get current reminder configuration status.
 /// Returns the active notification tier and whether reminders are enabled.
 pub async fn get_reminder_status_handler(
-    State((config_service, _, _, _, _, _, _)): State<AppState>,
+    State((config_service, _, _, _, _, _, _, _)): State<AppState>,
 ) -> Result<impl IntoResponse> {
     let config = config_service.get_config().await?;
 

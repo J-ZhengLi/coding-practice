@@ -38,7 +38,7 @@ pub struct TokenSuccessResponse {
 /// requests a device code from Google, and returns it to the frontend
 /// so the user can visit the verification URL and enter the user code.
 pub async fn connect_gmail_handler(
-    State((config_service, _, _, _, _, _, _)): State<AppState>,
+    State((config_service, _, _, _, _, _, _, _)): State<AppState>,
 ) -> Result<impl IntoResponse> {
     let config = config_service.get_config().await?;
 
@@ -117,7 +117,7 @@ pub async fn connect_gmail_handler(
 /// to Google's token endpoint. On success, we store the refresh_token in config
 /// and return success. The access_token is ephemeral and not stored.
 pub async fn poll_gmail_token_handler(
-    State((config_service, _, _, _, _, _, _)): State<AppState>,
+    State((config_service, _, _, _, _, _, _, _)): State<AppState>,
     Json(req): Json<TokenPollRequest>,
 ) -> Result<impl IntoResponse> {
     let config = config_service.get_config().await?;
@@ -214,7 +214,7 @@ pub async fn poll_gmail_token_handler(
 /// This is called when a Gmail token is invalid/expired and the user
 /// needs to re-authorize, or when the user wants to disconnect Gmail.
 pub async fn disconnect_gmail_handler(
-    State((config_service, _, _, _, _, _, _)): State<AppState>,
+    State((config_service, _, _, _, _, _, _, _)): State<AppState>,
 ) -> Result<impl IntoResponse> {
     let mut config = config_service.get_config().await?;
 

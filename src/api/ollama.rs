@@ -106,7 +106,7 @@ impl OllamaService {
 }
 
 pub async fn get_llm_models_handler(
-    State((_, ollama_service, _, _, _, _, _)): State<AppState>,
+    State((_, ollama_service, _, _, _, _, _, _)): State<AppState>,
 ) -> Result<Json<Vec<ModelInfo>>> {
     let models = ollama_service.list_models().await?;
     Ok(Json(models))

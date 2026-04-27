@@ -21,7 +21,7 @@ pub struct ExerciseQueryParams {
 
 /// GET /api/exercises - List exercises with optional language/difficulty filtering.
 pub async fn get_exercises_handler(
-    State((_, _, _, exercise_service, _, _, _)): State<AppState>,
+    State((_, _, _, exercise_service, _, _, _, _)): State<AppState>,
     Query(params): Query<ExerciseQueryParams>,
 ) -> Result<impl IntoResponse> {
     let language = params.language.as_deref();
@@ -63,7 +63,7 @@ pub async fn get_exercises_handler(
 
 /// POST /api/exercises/generate - Trigger exercise generation for a language and difficulty.
 pub async fn generate_exercises_handler(
-    State((_, _, _, exercise_service, _, _, _)): State<AppState>,
+    State((_, _, _, exercise_service, _, _, _, _)): State<AppState>,
     Json(request): Json<GenerateRequest>,
 ) -> Result<impl IntoResponse> {
     // Validate language and difficulty (T-02-16)
@@ -106,7 +106,7 @@ pub async fn generate_exercises_handler(
 
 /// GET /api/exercises/:id - Get a single exercise by ID.
 pub async fn get_exercise_by_id_handler(
-    State((_, _, _, exercise_service, _, _, _)): State<AppState>,
+    State((_, _, _, exercise_service, _, _, _, _)): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse> {
     let exercise = exercise_service
@@ -119,7 +119,7 @@ pub async fn get_exercise_by_id_handler(
 
 /// DELETE /api/exercises/:id - Delete an exercise by ID.
 pub async fn delete_exercise_handler(
-    State((_, _, _, exercise_service, _, _, _)): State<AppState>,
+    State((_, _, _, exercise_service, _, _, _, _)): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse> {
     exercise_service.delete_exercise(id).await?;

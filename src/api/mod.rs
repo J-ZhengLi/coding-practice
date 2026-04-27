@@ -1,4 +1,5 @@
 pub mod config;
+pub mod data;
 pub mod gmail;
 pub mod ollama;
 pub mod materials;
@@ -18,9 +19,10 @@ use crate::db::submission_repo::SqliteSubmissionRepository;
 use crate::schedule::ScheduleService;
 use crate::db::review_schedule_repo::SqliteReviewScheduleRepository;
 use crate::reminder::ReminderService;
+use crate::data_export::DataExportService;
 
 /// Shared application state type matching the router state.
-/// Extended from 6-tuple to 7-tuple to include ReminderService.
+/// Extended from 7-tuple to 8-tuple to include DataExportService.
 pub type AppState = (
     Arc<ConfigService<SqliteConfigRepository>>,
     Arc<OllamaService>,
@@ -29,6 +31,7 @@ pub type AppState = (
     Arc<SubmissionService<SqliteSubmissionRepository>>,
     Arc<ScheduleService<SqliteReviewScheduleRepository>>,
     Arc<ReminderService>,
+    Arc<DataExportService>,
 );
 
 pub use config::{get_config_handler, save_config_handler, check_configured_handler};
@@ -48,3 +51,4 @@ pub use submissions::{
 pub use schedule::{get_daily_plan_handler, get_schedule_status_handler};
 pub use reminder::{test_reminder_handler, get_reminder_status_handler};
 pub use gmail::{connect_gmail_handler, poll_gmail_token_handler, disconnect_gmail_handler};
+pub use data::{export_data_handler, import_data_handler};
