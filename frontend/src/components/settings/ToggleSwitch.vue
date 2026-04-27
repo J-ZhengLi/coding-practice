@@ -9,14 +9,12 @@ interface Emits {
   (e: 'update:modelValue', value: boolean): void;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const toggle = () => {
   emit('update:modelValue', !props.modelValue);
 };
-
-const props = defineProps<Props>();
 </script>
 
 <template>
