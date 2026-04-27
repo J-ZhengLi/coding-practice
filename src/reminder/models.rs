@@ -12,6 +12,10 @@ pub struct ReminderConfig {
     pub email: Option<String>,
     /// Gmail OAuth2 refresh token for Gmail API sending
     pub gmail_refresh_token: Option<String>,
+    /// Gmail OAuth2 client ID
+    pub gmail_client_id: Option<String>,
+    /// Gmail OAuth2 client secret
+    pub gmail_client_secret: Option<String>,
     /// SMTP relay hostname
     pub smtp_host: Option<String>,
     /// SMTP relay port

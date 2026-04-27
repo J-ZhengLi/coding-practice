@@ -56,26 +56,3 @@ impl Notifier for SmtpNotifier {
         NotificationTier::Smtp
     }
 }
-
-/// Gmail API notification.
-/// Stubbed for now; full implementation in plan 05-02.
-pub struct GmailNotifier {
-    pub refresh_token: String,
-    pub recipient: String,
-}
-
-#[async_trait]
-impl Notifier for GmailNotifier {
-    async fn send(&self, title: &str, body: &str) -> Result<()> {
-        tracing::info!(
-            "Gmail notification to {} using refresh token: {} - {}",
-            self.recipient, title, body
-        );
-        // TODO: Full implementation with Gmail API in 05-02
-        Ok(())
-    }
-
-    fn tier(&self) -> NotificationTier {
-        NotificationTier::Gmail
-    }
-}

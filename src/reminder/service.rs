@@ -9,7 +9,8 @@ use crate::db::repository::SqliteConfigRepository;
 use crate::error::Result;
 
 use super::models::{NotificationTier, ReminderConfig};
-use super::notifier::{DesktopNotifier, GmailNotifier, Notifier, SmtpNotifier};
+use super::notifier::{DesktopNotifier, Notifier, SmtpNotifier};
+use super::gmail::GmailNotifier;
 
 /// Background service that sends daily learning reminders.
 ///
@@ -135,10 +136,12 @@ impl ReminderService {
 
         let result = match tier {
             NotificationTier::Gmail => {
-                let notifier = GmailNotifier {
-                    refresh_token: config.gmail_refresh_token.unwrap_or_default(),
-                    recipient: config.email.unwrap_or_default(),
-                };
+                let notifier = GmailNotifier::new(
+                    config.gmail_refresh_token.unwrap_or_default(),
+                    config.gmail_client_id.unwrap_or_default(),
+                    config.gmail_client_secret.unwrap_or_default(),
+                    config.email.unwrap_or_default(),
+                );
                 notifier.send(title, body).await
             }
             NotificationTier::Smtp => {
@@ -187,6 +190,8 @@ impl ReminderService {
             reminders_enabled,
             email: config.email.clone(),
             gmail_refresh_token: config.gmail_refresh_token.clone(),
+            gmail_client_id: config.gmail_client_id.clone(),
+            gmail_client_secret: config.gmail_client_secret.clone(),
             smtp_host: config.smtp_host.clone(),
             smtp_port: config.smtp_port,
             smtp_user: config.smtp_user.clone(),
@@ -225,6 +230,8 @@ pub async fn send_test_reminder(
             reminders_enabled: true, // Force enabled for test
             email: config.email.clone(),
             gmail_refresh_token: config.gmail_refresh_token.clone(),
+            gmail_client_id: config.gmail_client_id.clone(),
+            gmail_client_secret: config.gmail_client_secret.clone(),
             smtp_host: config.smtp_host.clone(),
             smtp_port: config.smtp_port,
             smtp_user: config.smtp_user.clone(),
@@ -243,10 +250,12 @@ pub async fn send_test_reminder(
 
     let result = match tier {
         NotificationTier::Gmail => {
-            let notifier = GmailNotifier {
-                refresh_token: reminder_config.gmail_refresh_token.unwrap_or_default(),
-                recipient: reminder_config.email.unwrap_or_default(),
-            };
+            let notifier = GmailNotifier::new(
+                reminder_config.gmail_refresh_token.unwrap_or_default(),
+                reminder_config.gmail_client_id.unwrap_or_default(),
+                reminder_config.gmail_client_secret.unwrap_or_default(),
+                reminder_config.email.unwrap_or_default(),
+            );
             notifier.send(title, body).await
         }
         NotificationTier::Smtp => {
