@@ -204,7 +204,7 @@ pub async fn poll_gmail_token_handler(
     Ok((
         StatusCode::OK,
         Json(serde_json::json!({
-            "status": "connected"
+            "status": "success"
         })),
     ))
 }
