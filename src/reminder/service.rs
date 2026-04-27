@@ -9,8 +9,9 @@ use crate::db::repository::SqliteConfigRepository;
 use crate::error::Result;
 
 use super::models::{NotificationTier, ReminderConfig};
-use super::notifier::{DesktopNotifier, Notifier, SmtpNotifier};
+use super::notifier::{DesktopNotifier, Notifier};
 use super::gmail::GmailNotifier;
+use super::smtp::SmtpNotifier;
 
 /// Background service that sends daily learning reminders.
 ///

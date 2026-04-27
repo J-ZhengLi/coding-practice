@@ -30,29 +30,3 @@ impl Notifier for DesktopNotifier {
         NotificationTier::Desktop
     }
 }
-
-/// SMTP email notification via the `lettre` crate.
-/// Stubbed for now; full implementation in plan 05-02.
-pub struct SmtpNotifier {
-    pub host: String,
-    pub port: u16,
-    pub user: String,
-    pub password: String,
-    pub recipient: String,
-}
-
-#[async_trait]
-impl Notifier for SmtpNotifier {
-    async fn send(&self, title: &str, body: &str) -> Result<()> {
-        tracing::info!(
-            "SMTP notification to {} via {}:{}: {} - {}",
-            self.recipient, self.host, self.port, title, body
-        );
-        // TODO: Full implementation with lettre crate in 05-02
-        Ok(())
-    }
-
-    fn tier(&self) -> NotificationTier {
-        NotificationTier::Smtp
-    }
-}
