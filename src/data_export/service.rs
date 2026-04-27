@@ -179,13 +179,15 @@ impl DataExportService {
         let valid_columns = self.get_table_columns(table).await?;
         let valid_set: std::collections::HashSet<&str> = valid_columns.iter().map(|s| s.as_str()).collect();
 
+        // Filter to valid, non-null columns only. Null columns are skipped so
+        // SQLite uses the column DEFAULT (or NULL) instead of an empty string.
         let columns: Vec<&str> = obj.keys()
             .map(|k| k.as_str())
-            .filter(|k| valid_set.contains(k))
+            .filter(|k| valid_set.contains(k) && !obj[*k].is_null())
             .collect();
 
         if columns.is_empty() {
-            return Ok(()); // No valid columns, nothing to insert
+            return Ok(()); // No valid non-null columns, nothing to insert
         }
         let placeholders: Vec<&str> = columns.iter().map(|_| "?").collect();
 
@@ -201,7 +203,7 @@ impl DataExportService {
             .map(|col| {
                 let value = &obj[*col];
                 match value {
-                    Value::Null => String::new(),
+                    Value::Null => unreachable!("null columns already filtered"),
                     Value::Bool(b) => if *b { "1".to_string() } else { "0".to_string() },
                     Value::Number(n) => n.to_string(),
                     Value::String(s) => s.clone(),
