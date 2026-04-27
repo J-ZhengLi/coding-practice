@@ -54,6 +54,8 @@ pub async fn connect_gmail_handler(
     let params = [
         ("client_id", client_id.as_str()),
         ("scope", "https://www.googleapis.com/auth/gmail.send"),
+        ("prompt", "consent"),
+        ("access_type", "offline"),
     ];
 
     let resp = client
