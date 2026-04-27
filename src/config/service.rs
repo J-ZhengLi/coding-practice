@@ -114,6 +114,11 @@ impl<R: ConfigRepository> ConfigService<R> {
             smtp_host: get_optional("smtp_host"),
             smtp_port: get_optional("smtp_port").and_then(|v| v.parse().ok()),
             smtp_user: get_optional("smtp_user"),
+            reminder_time: get_optional("reminder_time"),
+            reminders_enabled: get_optional("reminders_enabled").and_then(|v| v.parse().ok()),
+            gmail_refresh_token: get_optional("gmail_refresh_token"),
+            last_reminded_at: get_optional("last_reminded_at"),
+            smtp_password: get_optional("smtp_password"),
         })
     }
 
@@ -188,6 +193,21 @@ impl<R: ConfigRepository> ConfigService<R> {
         }
         if let Some(ref user) = config.smtp_user {
             self.repository.set("smtp_user", user).await.map_err(AppError::from)?;
+        }
+        if let Some(ref reminder_time) = config.reminder_time {
+            self.repository.set("reminder_time", reminder_time).await.map_err(AppError::from)?;
+        }
+        if let Some(ref reminders_enabled) = config.reminders_enabled {
+            self.repository.set("reminders_enabled", &reminders_enabled.to_string()).await.map_err(AppError::from)?;
+        }
+        if let Some(ref gmail_refresh_token) = config.gmail_refresh_token {
+            self.repository.set("gmail_refresh_token", gmail_refresh_token).await.map_err(AppError::from)?;
+        }
+        if let Some(ref last_reminded_at) = config.last_reminded_at {
+            self.repository.set("last_reminded_at", last_reminded_at).await.map_err(AppError::from)?;
+        }
+        if let Some(ref smtp_password) = config.smtp_password {
+            self.repository.set("smtp_password", smtp_password).await.map_err(AppError::from)?;
         }
 
         Ok(())

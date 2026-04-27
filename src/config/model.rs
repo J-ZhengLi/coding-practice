@@ -25,6 +25,16 @@ pub struct UserConfig {
     pub smtp_port: Option<u16>,
     #[serde(default)]
     pub smtp_user: Option<String>,
+    #[serde(default)]
+    pub reminder_time: Option<String>,
+    #[serde(default)]
+    pub reminders_enabled: Option<bool>,
+    #[serde(default)]
+    pub gmail_refresh_token: Option<String>,
+    #[serde(default)]
+    pub last_reminded_at: Option<String>,
+    #[serde(default)]
+    pub smtp_password: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +69,16 @@ pub struct ConfigRequest {
     pub smtp_port: Option<u16>,
     #[serde(default)]
     pub smtp_user: Option<String>,
+    #[serde(default)]
+    pub reminder_time: Option<String>,
+    #[serde(default)]
+    pub reminders_enabled: Option<bool>,
+    #[serde(default)]
+    pub gmail_refresh_token: Option<String>,
+    #[serde(default)]
+    pub last_reminded_at: Option<String>,
+    #[serde(default)]
+    pub smtp_password: Option<String>,
 }
 
 impl From<ConfigRequest> for UserConfig {
@@ -75,6 +95,11 @@ impl From<ConfigRequest> for UserConfig {
             smtp_host: req.smtp_host,
             smtp_port: req.smtp_port,
             smtp_user: req.smtp_user,
+            reminder_time: req.reminder_time,
+            reminders_enabled: req.reminders_enabled,
+            gmail_refresh_token: req.gmail_refresh_token,
+            last_reminded_at: req.last_reminded_at,
+            smtp_password: req.smtp_password,
         }
     }
 }
