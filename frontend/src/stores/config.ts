@@ -29,6 +29,10 @@ export interface UserConfig {
   reminders_enabled?: boolean;
   gmail_refresh_token?: string;
   last_reminded_at?: string;
+  sources_enabled?: string;   // JSON: {"github":true,"web":true,"ai_generated":true}
+  source_priority?: string;   // JSON: ["github","web","ai_generated"]
+  github_repos?: string;      // JSON: [{"url":"...","branch":"main"}]
+  web_sources?: string;       // JSON: ["https://..."]
 }
 
 export const useConfigStore = defineStore('config', () => {

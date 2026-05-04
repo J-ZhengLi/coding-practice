@@ -3,6 +3,7 @@ interface Props {
   modelValue: boolean;
   label?: string;
   id?: string;
+  disabled?: boolean;
 }
 
 interface Emits {
@@ -18,11 +19,16 @@ const toggle = () => {
 </script>
 
 <template>
-  <label class="relative inline-flex items-center cursor-pointer" :for="id">
+  <label
+    class="relative inline-flex items-center"
+    :class="{ 'cursor-pointer': !disabled, 'cursor-not-allowed': disabled }"
+    :for="id"
+  >
     <input
       :id="id"
       type="checkbox"
       :checked="modelValue"
+      :disabled="disabled"
       @change="toggle"
       class="sr-only peer"
     />
