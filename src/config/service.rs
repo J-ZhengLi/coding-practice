@@ -119,6 +119,10 @@ impl<R: ConfigRepository> ConfigService<R> {
             gmail_refresh_token: get_optional("gmail_refresh_token"),
             last_reminded_at: get_optional("last_reminded_at"),
             smtp_password: get_optional("smtp_password"),
+            sources_enabled: get_optional("sources_enabled"),
+            source_priority: get_optional("source_priority"),
+            github_repos: get_optional("github_repos"),
+            web_sources: get_optional("web_sources"),
         })
     }
 
@@ -208,6 +212,18 @@ impl<R: ConfigRepository> ConfigService<R> {
         }
         if let Some(ref smtp_password) = config.smtp_password {
             self.repository.set("smtp_password", smtp_password).await.map_err(AppError::from)?;
+        }
+        if let Some(ref sources_enabled) = config.sources_enabled {
+            self.repository.set("sources_enabled", sources_enabled).await.map_err(AppError::from)?;
+        }
+        if let Some(ref source_priority) = config.source_priority {
+            self.repository.set("source_priority", source_priority).await.map_err(AppError::from)?;
+        }
+        if let Some(ref github_repos) = config.github_repos {
+            self.repository.set("github_repos", github_repos).await.map_err(AppError::from)?;
+        }
+        if let Some(ref web_sources) = config.web_sources {
+            self.repository.set("web_sources", web_sources).await.map_err(AppError::from)?;
         }
 
         Ok(())

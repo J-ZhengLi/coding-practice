@@ -46,6 +46,10 @@ fn make_test_config(language: &str) -> UserConfig {
         gmail_refresh_token: None,
         last_reminded_at: None,
         smtp_password: None,
+        sources_enabled: None,
+        source_priority: None,
+        github_repos: None,
+        web_sources: None,
     }
 }
 
