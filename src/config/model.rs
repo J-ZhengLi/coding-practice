@@ -35,12 +35,28 @@ pub struct UserConfig {
     pub last_reminded_at: Option<String>,
     #[serde(default)]
     pub smtp_password: Option<String>,
+    #[serde(default)]
+    pub sources_enabled: Option<String>,
+    #[serde(default)]
+    pub source_priority: Option<String>,
+    #[serde(default)]
+    pub github_repos: Option<String>,
+    #[serde(default)]
+    pub web_sources: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LanguageQuota {
     pub language: String,
     pub quota: u32,
+}
+
+/// A custom GitHub repository for exercise source material.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitHubRepo {
+    pub url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -79,6 +95,14 @@ pub struct ConfigRequest {
     pub last_reminded_at: Option<String>,
     #[serde(default)]
     pub smtp_password: Option<String>,
+    #[serde(default)]
+    pub sources_enabled: Option<String>,
+    #[serde(default)]
+    pub source_priority: Option<String>,
+    #[serde(default)]
+    pub github_repos: Option<String>,
+    #[serde(default)]
+    pub web_sources: Option<String>,
 }
 
 impl From<ConfigRequest> for UserConfig {
@@ -100,6 +124,10 @@ impl From<ConfigRequest> for UserConfig {
             gmail_refresh_token: req.gmail_refresh_token,
             last_reminded_at: req.last_reminded_at,
             smtp_password: req.smtp_password,
+            sources_enabled: req.sources_enabled,
+            source_priority: req.source_priority,
+            github_repos: req.github_repos,
+            web_sources: req.web_sources,
         }
     }
 }
