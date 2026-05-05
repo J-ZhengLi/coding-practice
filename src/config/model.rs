@@ -6,7 +6,7 @@ pub struct LanguageSkillLevel {
     pub skill_level: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UserConfig {
     pub preferred_language: String,
     pub skill_levels: Vec<LanguageSkillLevel>,
@@ -59,9 +59,10 @@ pub struct GitHubRepo {
     pub branch: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ModelType {
+    #[default]
     Local,
     Api,
 }
