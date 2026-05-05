@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useSettingsStore } from '../stores/settings';
 import { useConfigStore } from '../stores/config';
@@ -8,6 +8,7 @@ import SectionNav from '../components/settings/SectionNav.vue';
 import ToggleSwitch from '../components/settings/ToggleSwitch.vue';
 import GmailConnectPanel from '../components/settings/GmailConnectPanel.vue';
 import FileDropZone from '../components/settings/FileDropZone.vue';
+import SourceCard from '../components/settings/SourceCard.vue';
 
 const router = useRouter();
 const settingsStore = useSettingsStore();
@@ -18,9 +19,36 @@ const showImportConfirm = ref(false);
 const importFile = ref<File | null>(null);
 const importSuccess = ref(false);
 
+// --- Exercise Sources State ---
+const sourceLabels: Record<string, string> = {
+  github: 'GitHub',
+  web: 'Web',
+  ai_generated: 'AI-Generated',
+};
+
+const sourcePriority = ref<string[]>(['github', 'web', 'ai_generated']);
+const sourcesEnabled = ref<Record<string, boolean>>({
+  github: true,
+  web: true,
+  ai_generated: true,
+});
+const githubRepos = ref<Array<{ url: string; branch: string }>>([]);
+const webSources = ref<string[]>([]);
+
+const enabledCount = computed(() =>
+  Object.values(sourcesEnabled.value).filter(Boolean).length
+);
+
+// New repo/URL input state for add forms
+const newGithubRepoUrl = ref('');
+const newGithubRepoBranch = ref('');
+const newWebSourceUrl = ref('');
+const urlValidationError = ref<Record<string, string>>({});
+
 const sections = [
   { id: 'general', label: 'General', icon: '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>' },
   { id: 'ai-model', label: 'AI Model', icon: '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z"/></svg>' },
+  { id: 'exercise-sources', label: 'Exercise Sources', icon: '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="1.5" fill="currentColor"/><circle cx="8" cy="12" r="1.5" fill="currentColor"/><circle cx="8" cy="18" r="1.5" fill="currentColor"/></svg>' },
   { id: 'notifications', label: 'Notifications', icon: '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>' },
   { id: 'data-management', label: 'Data Management', icon: '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>' },
 ];
@@ -72,8 +100,160 @@ const reminderMethod = computed<'gmail' | 'smtp' | 'desktop'>({
   },
 });
 
+// --- Exercise Sources Logic ---
+const initSourceConfig = () => {
+  if (!settingsStore.config) return;
+  // Parse source_priority JSON string
+  if (settingsStore.config.source_priority) {
+    try {
+      const parsed = JSON.parse(settingsStore.config.source_priority);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        sourcePriority.value = parsed;
+      }
+    } catch { /* keep defaults */ }
+  }
+  // Parse sources_enabled JSON string
+  if (settingsStore.config.sources_enabled) {
+    try {
+      const parsed = JSON.parse(settingsStore.config.sources_enabled);
+      if (typeof parsed === 'object' && parsed !== null) {
+        sourcesEnabled.value = {
+          github: parsed.github ?? true,
+          web: parsed.web ?? true,
+          ai_generated: parsed.ai_generated ?? true,
+        };
+      }
+    } catch { /* keep defaults */ }
+  }
+  // Parse github_repos JSON string
+  if (settingsStore.config.github_repos) {
+    try {
+      const parsed = JSON.parse(settingsStore.config.github_repos);
+      if (Array.isArray(parsed)) {
+        githubRepos.value = parsed.map((r: any) => ({
+          url: r.url || '',
+          branch: r.branch || '',
+        }));
+      }
+    } catch { /* keep defaults */ }
+  }
+  // Parse web_sources JSON string
+  if (settingsStore.config.web_sources) {
+    try {
+      const parsed = JSON.parse(settingsStore.config.web_sources);
+      if (Array.isArray(parsed)) {
+        webSources.value = parsed;
+      }
+    } catch { /* keep defaults */ }
+  }
+  // If no web_sources in config, pre-fill CURATED_SITES per D-07
+  if (webSources.value.length === 0 && !settingsStore.config.web_sources) {
+    webSources.value = [
+      'https://doc.rust-lang.org/rust-by-example/',
+      'https://gobyexample.com/',
+      'https://docs.python.org/3/tutorial/',
+      'https://en.cppreference.com/w/',
+    ];
+  }
+};
+
+// Toggle a source on/off
+const onSourceToggle = (sourceKey: string, enabled: boolean) => {
+  sourcesEnabled.value[sourceKey] = enabled;
+  settingsStore.config.sources_enabled = JSON.stringify(sourcesEnabled.value);
+};
+
+// --- Drag and Drop ---
+let draggedIndex: number | null = null;
+
+const onDragStart = (event: DragEvent, index: number) => {
+  draggedIndex = index;
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+  }
+  (event.target as HTMLElement)?.closest('.source-card')?.classList.add('opacity-50');
+};
+
+const onDragOver = (event: DragEvent) => {
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move';
+  }
+};
+
+const onDrop = (event: DragEvent, dropIndex: number) => {
+  event.preventDefault();
+  document.querySelectorAll('.source-card.opacity-50').forEach(el => el.classList.remove('opacity-50'));
+
+  if (draggedIndex === null || draggedIndex === dropIndex) {
+    draggedIndex = null;
+    return;
+  }
+
+  const items = [...sourcePriority.value];
+  const [moved] = items.splice(draggedIndex, 1);
+  items.splice(dropIndex, 0, moved);
+  sourcePriority.value = items;
+  draggedIndex = null;
+
+  settingsStore.config.source_priority = JSON.stringify(sourcePriority.value);
+};
+
+// --- URL Validation ---
+const isValidHttpUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+// --- GitHub Repo Management ---
+const addGithubRepo = () => {
+  const url = newGithubRepoUrl.value.trim();
+  if (!url) return;
+  if (!isValidHttpUrl(url)) {
+    urlValidationError.value['github-repo'] = 'Please enter a valid URL starting with http:// or https://';
+    return;
+  }
+  urlValidationError.value['github-repo'] = '';
+  githubRepos.value.push({
+    url,
+    branch: newGithubRepoBranch.value.trim(),
+  });
+  newGithubRepoUrl.value = '';
+  newGithubRepoBranch.value = '';
+  settingsStore.config.github_repos = JSON.stringify(githubRepos.value);
+};
+
+const removeGithubRepo = (index: number) => {
+  githubRepos.value.splice(index, 1);
+  settingsStore.config.github_repos = JSON.stringify(githubRepos.value);
+};
+
+// --- Web Source Management ---
+const addWebSource = () => {
+  const url = newWebSourceUrl.value.trim();
+  if (!url) return;
+  if (!isValidHttpUrl(url)) {
+    urlValidationError.value['web-source'] = 'Please enter a valid URL starting with http:// or https://';
+    return;
+  }
+  urlValidationError.value['web-source'] = '';
+  webSources.value.push(url);
+  newWebSourceUrl.value = '';
+  settingsStore.config.web_sources = JSON.stringify(webSources.value);
+};
+
+const removeWebSource = (index: number) => {
+  webSources.value.splice(index, 1);
+  settingsStore.config.web_sources = JSON.stringify(webSources.value);
+};
+
 onMounted(async () => {
   await settingsStore.fetchConfig();
+  initSourceConfig();
 
   // Load Ollama models for AI model section
   ollamaLoading.value = true;
@@ -91,6 +271,13 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (scrollObserver) scrollObserver.disconnect();
+});
+
+// Re-initialize source config when config is refetched (e.g., after import)
+watch(() => settingsStore.config, (newConfig) => {
+  if (newConfig) {
+    initSourceConfig();
+  }
 });
 
 // Scroll-to-section logic
@@ -386,6 +573,118 @@ const handleTestReminder = async () => {
             </div>
 
             <!-- Model Input (API) - no model name needed -->
+          </div>
+        </section>
+
+        <!-- Exercise Sources Section -->
+        <section id="exercise-sources" class="settings-section">
+          <h2 class="section-heading">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="1.5" fill="currentColor"/><circle cx="8" cy="12" r="1.5" fill="currentColor"/><circle cx="8" cy="18" r="1.5" fill="currentColor"/></svg>
+            Exercise Sources
+          </h2>
+          <p class="section-description">
+            Choose where exercises come from and in what order. Sources are used in priority order from top to bottom.
+          </p>
+          <div class="section-body">
+            <div class="source-cards-container">
+              <SourceCard
+                v-for="(sourceKey, index) in sourcePriority"
+                :key="sourceKey"
+                :source-key="sourceKey"
+                :label="sourceLabels[sourceKey]"
+                :enabled="sourcesEnabled[sourceKey]"
+                :disabled="enabledCount === 1 && sourcesEnabled[sourceKey]"
+                disabled-tooltip="At least one exercise source must remain enabled."
+                @update:enabled="onSourceToggle(sourceKey, $event)"
+                @dragstart="onDragStart($event, index)"
+                @dragover="onDragOver($event)"
+                @drop="onDrop($event, index)"
+              >
+                <!-- GitHub Sub-Settings -->
+                <template v-if="sourceKey === 'github'">
+                  <h3 class="sub-heading">Custom Repositories</h3>
+
+                  <div v-if="githubRepos.length > 0" class="source-list">
+                    <div v-for="(repo, repoIdx) in githubRepos" :key="repoIdx" class="source-item">
+                      <div class="source-item-fields">
+                        <input
+                          type="text"
+                          v-model="repo.url"
+                          placeholder="https://github.com/user/repo"
+                          class="form-input"
+                          @change="settingsStore.config.github_repos = JSON.stringify(githubRepos)"
+                        />
+                        <input
+                          type="text"
+                          v-model="repo.branch"
+                          placeholder="main"
+                          class="form-input w-40"
+                          @change="settingsStore.config.github_repos = JSON.stringify(githubRepos)"
+                        />
+                      </div>
+                      <button @click="removeGithubRepo(repoIdx)" class="remove-source-btn" title="Remove repository">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div v-else class="empty-state">
+                    No custom repositories added. Add a repository URL above to include it as an exercise source.
+                  </div>
+
+                  <div class="add-source-form">
+                    <input
+                      type="text"
+                      v-model="newGithubRepoUrl"
+                      placeholder="https://github.com/user/repo"
+                      :class="['form-input', urlValidationError['github-repo'] ? 'border-red-400' : '']"
+                      @keyup.enter="addGithubRepo"
+                    />
+                    <input
+                      type="text"
+                      v-model="newGithubRepoBranch"
+                      placeholder="main"
+                      class="form-input w-40"
+                      @keyup.enter="addGithubRepo"
+                    />
+                    <button @click="addGithubRepo" class="action-btn secondary">Add Repository</button>
+                  </div>
+                  <div v-if="urlValidationError['github-repo']" class="url-error">
+                    {{ urlValidationError['github-repo'] }}
+                  </div>
+                </template>
+
+                <!-- Web Sub-Settings -->
+                <template v-else-if="sourceKey === 'web'">
+                  <h3 class="sub-heading">Web Sources</h3>
+
+                  <div v-if="webSources.length > 0" class="source-list">
+                    <div v-for="(url, urlIdx) in webSources" :key="urlIdx" class="source-item source-item-single">
+                      <span class="source-url-text">{{ url }}</span>
+                      <button @click="removeWebSource(urlIdx)" class="remove-source-btn" title="Remove web source">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div v-else class="empty-state">
+                    No web sources configured. Add a URL above or restore defaults to include web tutorials as exercise sources.
+                  </div>
+
+                  <div class="add-source-form">
+                    <input
+                      type="text"
+                      v-model="newWebSourceUrl"
+                      placeholder="https://example.com/tutorial"
+                      :class="['form-input', urlValidationError['web-source'] ? 'border-red-400' : '']"
+                      @keyup.enter="addWebSource"
+                    />
+                    <button @click="addWebSource" class="action-btn secondary">Add Web Source</button>
+                  </div>
+                  <div v-if="urlValidationError['web-source']" class="url-error">
+                    {{ urlValidationError['web-source'] }}
+                  </div>
+                </template>
+              </SourceCard>
+            </div>
           </div>
         </section>
 
@@ -1133,6 +1432,98 @@ const handleTestReminder = async () => {
   border-radius: 0.5rem;
   cursor: pointer;
   font-weight: 600;
+}
+
+/* Source Cards Container */
+.source-cards-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.source-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+
+.source-item-single {
+  align-items: center;
+}
+
+.source-item-fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.source-url-text {
+  flex: 1;
+  font-size: 0.85rem;
+  color: #374151;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.remove-source-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.25rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #9ca3af;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.remove-source-btn:hover {
+  background-color: #fef2f2;
+  color: #dc2626;
+}
+
+.add-source-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.url-error {
+  color: #dc2626;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.empty-state {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  padding: 0.5rem 0;
+  margin-bottom: 0.5rem;
+}
+
+/* Drag visual feedback */
+.source-card.opacity-50 {
+  opacity: 0.5;
+}
+
+/* Utility widths */
+.w-40 {
+  width: 10rem;
 }
 
 @keyframes spin {
